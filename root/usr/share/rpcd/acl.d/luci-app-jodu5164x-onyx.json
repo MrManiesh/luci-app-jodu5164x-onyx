@@ -1,0 +1,24 @@
+{
+    "luci-app-jodu5164x-onyx": {
+        "description": "Grant WebUI access to JODU5164x 5G Dashboard",
+        "read": {
+            "uci": [ "jodu5164x" ],
+            "file": {
+                "/usr/libexec/jodu5164x-data.sh": [ "read", "exec" ],
+                "/usr/libexec/jodu5164x_reboot.sh": [ "exec" ],
+                "/usr/libexec/jodu5164x_at.sh": [ "exec" ],
+                "/usr/libexec/jodu5164x_lock.sh": [ "exec" ],
+                "/usr/libexec/jodu5164x-setup.sh": [ "exec" ],
+                "/bin/sh": [ "exec" ]
+            }
+        },
+        "write": {
+            "uci": [ "jodu5164x" ],
+            "file": {
+                "/tmp/odu5164x_force_setup": [ "write" ],
+                "/sbin/uci": [ "exec" ],
+                "/bin/sh": [ "exec" ]
+            }
+        }
+    }
+}
