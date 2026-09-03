@@ -4,6 +4,7 @@ PKG_NAME:=luci-app-jodu5164x-onyx
 PKG_VERSION:=1.0.0
 PKG_RELEASE:=3
 PKG_LICENSE:=GPL-3.0
+PKG_SOURCE_PROTO:=local
 
 include $(INCLUDE_DIR)/package.mk
 
