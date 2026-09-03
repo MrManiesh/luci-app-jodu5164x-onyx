@@ -1,0 +1,4 @@
+# Ensure Makefiles always use LF on checkout (critical for Linux builds)
+Makefile text eol=lf
+*.mk text eol=lf
+*.sh text eol=lf
