@@ -1,62 +1,59 @@
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=luci-app-jodu5164x-onyx
-PKG_VERSION:=1.0.0
-PKG_RELEASE:=3
-PKG_LICENSE:=GPL-3.0
-
 LUCI_TITLE:=LuCI support for JODU5164x
 LUCI_DEPENDS:=+luci-base +wget +telnet-bsd +luci-compat
 LUCI_PKGARCH:=all
 
-include $(INCLUDE_DIR)/package.mk
+PKG_NAME:=luci-app-jodu5164x-onyx
+PKG_VERSION:=1.0.0
+PKG_RELEASE:=3
+PKG_LICENSE:=GPL-3.0
+PKG_MAINTAINER:=Manish Matwa Choudhary
 
-define Package/luci-app-jodu5164x-onyx/description
-  LuCI support for JODU5164x (JODU51641 / JODU51642).
-  Provides real-time ODU signal monitoring for OpenWrt.
-endef
+# Include luci.mk if present in feeds (standard OpenWrt SDK setup)
+ifneq ($(wildcard $(TOPDIR)/feeds/luci/luci.mk),)
+  include $(TOPDIR)/feeds/luci/luci.mk
+else
+  include $(INCLUDE_DIR)/package.mk
 
-define Build/Prepare
-	mkdir -p $(PKG_BUILD_DIR)
-	$(CP) $(CURDIR)/root $(PKG_BUILD_DIR)/
-	$(CP) $(CURDIR)/htdocs $(PKG_BUILD_DIR)/
-endef
+  define Package/$(PKG_NAME)
+    SECTION:=luci
+    CATEGORY:=LuCI
+    SUBMENU:=3. Applications
+    TITLE:=$(LUCI_TITLE)
+    DEPENDS:=$(LUCI_DEPENDS)
+    PKGARCH:=$(LUCI_PKGARCH)
+  endef
 
-define Build/Configure
-endef
+  define Package/$(PKG_NAME)/description
+    LuCI support for JODU5164x (JODU51641 / JODU51642).
+    Provides real-time ODU signal monitoring for OpenWrt.
+  endef
 
-define Build/Compile
-endef
+  define Build/Configure
+  endef
 
-define Package/luci-app-jodu5164x-onyx/install
-	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/root/usr/share/luci/menu.d/luci-app-jodu5164x-onyx.json $(1)/usr/share/luci/menu.d/
+  define Build/Compile
+  endef
 
-	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/root/usr/share/rpcd/acl.d/luci-app-jodu5164x-onyx.json $(1)/usr/share/rpcd/acl.d/
+  define Package/$(PKG_NAME)/install
+	$(INSTALL_DIR) $(1)/
+	cp -pR ./root/* $(1)/
+	$(INSTALL_DIR) $(1)/www
+	cp -pR ./htdocs/* $(1)/www/
+	chmod 0755 $(1)/usr/libexec/*
+  endef
 
-	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/jodu5164x
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/jodu5164x/status.js $(1)/www/luci-static/resources/view/jodu5164x/
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/htdocs/luci-static/resources/view/jodu5164x/jio-logo.png $(1)/www/luci-static/resources/view/jodu5164x/
-
-	$(INSTALL_DIR) $(1)/usr/libexec
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/root/usr/libexec/jodu5164x-data.sh $(1)/usr/libexec/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/root/usr/libexec/jodu5164x-setup.sh $(1)/usr/libexec/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/root/usr/libexec/jodu5164x_lock.sh $(1)/usr/libexec/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/root/usr/libexec/jodu5164x_at.sh $(1)/usr/libexec/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/root/usr/libexec/jodu5164x_reboot.sh $(1)/usr/libexec/
-
-	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/root/etc/config/jodu5164x $(1)/etc/config/
-endef
-
-define Package/luci-app-jodu5164x-onyx/postinst
+  define Package/$(PKG_NAME)/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] || {
 	rm -rf /tmp/luci-indexcache /tmp/luci-modulecache /tmp/luci-sessions/*
-	/etc/init.d/rpcd restart
+	/etc/init.d/rpcd reload 2>/dev/null
 }
 exit 0
-endef
+  endef
 
-$(eval $(call BuildPackage,luci-app-jodu5164x-onyx))
+  $(eval $(call BuildPackage,$(PKG_NAME)))
+endif
+
+# call BuildPackage - OpenWrt buildroot signature

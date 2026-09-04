@@ -6,6 +6,7 @@ on:
     tags: ['v*']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -16,10 +17,16 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      - name: Prepare feed directory
+        run: |
+          mkdir -p custom-feed/luci-app-jodu5164x-onyx
+          cp -r root htdocs Makefile custom-feed/luci-app-jodu5164x-onyx/
+
       - name: Build with OpenWrt SDK
         uses: openwrt/gh-action-sdk@main
         env:
           ARCH: x86_64
+          FEED_DIR: ${{ github.workspace }}/custom-feed
           FEEDNAME: packages_ci
           PACKAGES: luci-app-jodu5164x-onyx
           NO_REFRESH_CHECK: true
@@ -28,25 +35,32 @@ jobs:
         id: find_pkg
         run: |
           echo "Searching for built packages..."
-          find bin/ -name "*.apk" -o -name "*.ipk" | head -20
-          # Store the package path for later steps
-          PKG_PATH=$(find bin/ -name "luci-app-jodu5164x-onyx*" -type f | head -1)
-          echo "pkg_path=$PKG_PATH" >> "$GITHUB_OUTPUT"
-          echo "pkg_name=$(basename $PKG_PATH)" >> "$GITHUB_OUTPUT"
+          find bin/ -type f \( -name "*.apk" -o -name "*.ipk" \) | head -20
+          PKG_PATH=$(find bin/ -type f -name "luci-app-jodu5164x-onyx*" | head -1)
+          if [ -n "$PKG_PATH" ]; then
+            echo "pkg_path=$PKG_PATH" >> "$GITHUB_OUTPUT"
+            echo "pkg_name=$(basename "$PKG_PATH")" >> "$GITHUB_OUTPUT"
+            echo "Found package: $PKG_PATH"
+          else
+            echo "::error::No built package found in bin/"
+            exit 1
+          fi
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
           name: luci-app-jodu5164x-onyx
           path: |
-            bin/packages/*/packages_ci/*.apk
-            bin/packages/*/packages_ci/*.ipk
+            bin/**/*.apk
+            bin/**/*.ipk
+          if-no-files-found: warn
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bin/packages/*/packages_ci/*.apk
-            bin/packages/*/packages_ci/*.ipk
+            bin/**/*.apk
+            bin/**/*.ipk
+          fail_on_unmatched_files: false
           generate_release_notes: true

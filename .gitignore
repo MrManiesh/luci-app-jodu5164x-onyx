@@ -1,0 +1,5 @@
+bin/
+custom-feed/
+*.tmp
+*.apk
+*.ipk
