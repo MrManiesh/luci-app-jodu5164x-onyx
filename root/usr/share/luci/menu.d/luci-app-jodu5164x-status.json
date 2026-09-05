@@ -1,0 +1,13 @@
+{
+	"admin/status/jodu5164xstatus": {
+		"title": "5G Dashboard",
+		"order": 65,
+		"action": {
+			"type": "view",
+			"path": "jodu5164x/status"
+		},
+		"depends": {
+			"acl": ["luci-app-jodu5164x-status"]
+		}
+	}
+}

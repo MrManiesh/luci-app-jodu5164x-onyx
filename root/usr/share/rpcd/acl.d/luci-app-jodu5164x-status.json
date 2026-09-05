@@ -1,0 +1,28 @@
+{
+	"luci-app-jodu5164x-status": {
+		"description": "Grant access to ODU status page, data collector, config writer, reboot control, diagnostics, and its UCI config",
+		"read": {
+			"file": {
+				"/usr/libexec/jodu5164x-data.sh": ["exec"],
+				"/usr/libexec/jodu5164x-diag.sh": ["exec"]
+			},
+			"ubus": {
+				"file": ["exec"]
+			},
+			"uci": ["jodu5164x"]
+		},
+		"write": {
+			"file": {
+				"/usr/libexec/jodu5164x-set-config.sh": ["exec"],
+				"/usr/libexec/jodu5164x-reboot.sh": ["exec"],
+				"/usr/libexec/jodu5164x-toggle.sh": ["exec"],
+				"/usr/libexec/jodu5164x-cell-lock.sh": ["exec"],
+				"/usr/libexec/jodu5164x-diag.sh": ["exec"]
+			},
+			"ubus": {
+				"file": ["exec"]
+			},
+			"uci": ["jodu5164x"]
+		}
+	}
+}

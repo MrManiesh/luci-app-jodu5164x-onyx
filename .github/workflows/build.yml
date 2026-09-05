@@ -1,0 +1,59 @@
+name: Build OpenWrt APK Package
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Prepare feed directory
+        run: |
+          mkdir -p custom-feed/luci-app-jodu5164x-status
+          cp -r root htdocs Makefile custom-feed/luci-app-jodu5164x-status/
+
+      - name: Build with OpenWrt SDK
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: x86_64
+          FEED_DIR: ${{ github.workspace }}/custom-feed
+          FEEDNAME: packages_ci
+          PACKAGES: luci-app-jodu5164x-status
+          NO_REFRESH_CHECK: true
+
+      - name: Collect package artifacts
+        id: collect_pkg
+        run: |
+          mkdir -p dist
+          find bin/ -type f -name "luci-app-jodu5164x-status*" -exec cp -v {} dist/ \;
+          echo "=== Collected Package Files ==="
+          ls -lh dist/
+          PKG_FILE=$(ls dist/ | head -1)
+          if [ -z "$PKG_FILE" ]; then
+            echo "::error::No package matching luci-app-jodu5164x-status found!"
+            exit 1
+          fi
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luci-app-jodu5164x-status
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
