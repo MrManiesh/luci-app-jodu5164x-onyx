@@ -26,7 +26,7 @@ case "$CMD_ID" in
     ca_info)
         TARGET_CMD="atcli 'AT+NRCAINFO'" ;;
     nearby)
-        TARGET_CMD="atcli 'AT+BNRCELLH=?'" ;;
+        TARGET_CMD="atcli 'AT+BNRCELLH' || /usr/bin/atcli 'AT+BNRCELLH' || atcli 'AT+BNRCELLH?'" ;;
     signal)
         TARGET_CMD="cricli signal" ;;
     band)

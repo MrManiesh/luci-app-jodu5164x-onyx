@@ -266,9 +266,67 @@ function unlockCell() {
     ]);
 }
 
+function manualLockModal(defaultPci, defaultArfcn) {
+    var pciInput = E('input', { 'type': 'number', 'class': 'cbi-input-text', 'placeholder': 'e.g. 182', 'value': defaultPci || '', 'style': 'width:100%' });
+    var arfcnInput = E('input', { 'type': 'number', 'class': 'cbi-input-text', 'placeholder': 'e.g. 627264', 'value': defaultArfcn || '', 'style': 'width:100%' });
+    ui.showModal('Manual Cell Lock', [
+        E('p', {}, 'Lock modem to any specific Physical Cell ID (PCI) and Frequency Channel (ARFCN):'),
+        E('div', { 'style': 'margin-bottom:12px' }, [
+            E('label', { 'style': 'display:block;margin-bottom:4px;color:#94a3b8;font-size:0.85em;font-weight:600;' }, 'Physical Cell ID (PCI)'),
+            pciInput
+        ]),
+        E('div', { 'style': 'margin-bottom:14px' }, [
+            E('label', { 'style': 'display:block;margin-bottom:4px;color:#94a3b8;font-size:0.85em;font-weight:600;' }, 'NR-ARFCN Channel'),
+            arfcnInput
+        ]),
+        E('div', { 'class': 'right', 'style': 'margin-top:16px;display:flex;justify-content:flex-end;gap:8px' }, [
+            E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'),
+            E('button', {
+                'class': 'btn cbi-button-negative',
+                'click': function () {
+                    var pci = pciInput.value.trim();
+                    var arfcn = arfcnInput.value.trim();
+                    if (!pci || !arfcn) return;
+                    ui.hideModal();
+                    lockCell(pci, arfcn);
+                }
+            }, 'Lock to Cell')
+        ])
+    ]);
+}
+
 function nearbyCellsSection(data) {
-    var cells = Array.isArray(data.nearby_cells) ? data.nearby_cells.slice() : [];
-    cells.sort(function (a, b) { return parseFloat(b.rsrp) - parseFloat(a.rsrp); });
+    var cells = Array.isArray(data.nearby_cells) ? data.nearby_cells.slice() : (Array.isArray(data.neighbors) ? data.neighbors.slice() : []);
+
+    // Always include the active primary serving cell so the connected tower is always visible
+    var servingPci = data.pci || data.pcid;
+    var servingArfcn = data.arfcn;
+    if (servingPci && servingArfcn && servingPci !== '--' && servingPci !== 'NA' && servingArfcn !== '--' && servingArfcn !== 'NA') {
+        var alreadyPresent = false;
+        for (var i = 0; i < cells.length; i++) {
+            if (String(cells[i].pci) === String(servingPci) && String(cells[i].arfcn) === String(servingArfcn)) {
+                cells[i].isServing = true;
+                alreadyPresent = true;
+                break;
+            }
+        }
+        if (!alreadyPresent) {
+            cells.unshift({
+                pci: String(servingPci),
+                arfcn: String(servingArfcn),
+                rsrp: (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp : '--',
+                rsrq: (data.rsrq && data.rsrq !== 'NA' && data.rsrq !== '--') ? data.rsrq : '--',
+                isServing: true
+            });
+        }
+    }
+
+    cells.sort(function (a, b) {
+        if (a.isServing) return -1;
+        if (b.isServing) return 1;
+        return parseFloat(b.rsrp) - parseFloat(a.rsrp);
+    });
+
     var lockStatus = data.cell_lock_status || 'UNKNOWN';
     var isLocked = lockStatus !== 'UNLOCK' && lockStatus !== 'UNKNOWN';
     var statusBadge = E('span', {
@@ -276,15 +334,26 @@ function nearbyCellsSection(data) {
         'style': isLocked ? 'background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);' : 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);'
     }, isLocked ? 'LOCKED (' + lockStatus + ')' : 'UNLOCKED (AUTO)');
 
-    var statusRow = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px' }, [
+    var actionBtns = [];
+    if (isLocked) {
+        actionBtns.push(E('button', { 'class': 'btn cbi-button-positive', 'style': 'font-size:0.8em;padding:4px 10px;border-radius:6px;margin-right:6px;', 'click': unlockCell }, '🔓 Unlock'));
+    }
+    actionBtns.push(E('button', { 'class': 'btn jodu-btn-sm', 'click': function () { manualLockModal(servingPci, servingArfcn); } }, '🔒 Manual Lock'));
+
+    var statusRow = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;' }, [
         E('div', { 'style': 'color:#94a3b8;font-size:0.85em;display:flex;align-items:center;gap:6px;' }, [
             'Lock State: ', statusBadge
         ]),
-        isLocked ? E('button', { 'class': 'btn cbi-button-positive', 'style': 'font-size:0.8em;padding:4px 10px;border-radius:6px;', 'click': unlockCell }, '🔓 Unlock') : ''
+        E('div', { 'style': 'display:flex;gap:6px;' }, actionBtns)
     ]);
+
     if (!cells.length) {
-        return panel('Nearby Cells & Tower Scan', E('div', {}, [statusRow, E('p', { 'style': 'color:#64748b;font-size:0.9em;padding:12px 0;' }, 'No neighbouring cells detected in the current sector scan.')]), '🛰️');
+        return panel('Nearby Cells & Tower Scan', E('div', {}, [
+            statusRow,
+            E('p', { 'style': 'color:#64748b;font-size:0.88em;padding:12px 0;' }, 'No neighbouring cells detected in current sector scan. Use Manual Lock to bind to a specific tower.')
+        ]), '🛰️');
     }
+
     var headerRow = E('tr', { 'class': 'jodu-th-tr' }, [
         E('th', { 'class': 'jodu-th' }, 'PCI'),
         E('th', { 'class': 'jodu-th' }, 'ARFCN'),
@@ -292,13 +361,21 @@ function nearbyCellsSection(data) {
         E('th', { 'class': 'jodu-th', 'style': 'text-align:right' }, 'RSRQ'),
         E('th', { 'class': 'jodu-th', 'style': 'text-align:right' }, 'Action')
     ]);
+
     var rows = cells.map(function (c) {
         var color = qualityColor('rsrp', c.rsrp);
+        var pciDisplay = [E('span', { 'style': 'font-weight:700;' }, c.pci)];
+        if (c.isServing) {
+            pciDisplay.push(E('span', {
+                'class': 'jodu-badge',
+                'style': 'margin-left:6px;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);font-size:0.68em;'
+            }, 'Serving'));
+        }
         return E('tr', { 'class': 'jodu-tr' }, [
-            E('td', { 'class': 'jodu-td-lbl', 'style': 'font-weight:600;' }, c.pci),
+            E('td', { 'class': 'jodu-td-lbl' }, pciDisplay),
             E('td', { 'class': 'jodu-td-lbl' }, c.arfcn),
-            E('td', { 'class': 'jodu-td-val', 'style': 'color:' + color + ';font-weight:600;' }, c.rsrp + ' dBm'),
-            E('td', { 'class': 'jodu-td-val', 'style': 'color:#94a3b8;' }, c.rsrq + ' dB'),
+            E('td', { 'class': 'jodu-td-val', 'style': 'color:' + color + ';font-weight:600;' }, c.rsrp + (c.rsrp !== '--' && c.rsrp !== 'NA' ? ' dBm' : '')),
+            E('td', { 'class': 'jodu-td-val', 'style': 'color:#94a3b8;' }, c.rsrq + (c.rsrq !== '--' && c.rsrq !== 'NA' ? ' dB' : '')),
             E('td', { 'class': 'jodu-td-val', 'style': 'text-align:right' }, [
                 E('button', {
                     'class': 'btn jodu-btn-sm',
@@ -307,9 +384,11 @@ function nearbyCellsSection(data) {
             ])
         ]);
     });
+
     var table = E('div', { 'style': 'max-height:280px;overflow-y:auto' }, [
         E('table', { 'class': 'jodu-table' }, [headerRow].concat(rows))
     ]);
+
     return panel('Nearby Cells & Tower Scan', E('div', {}, [statusRow, table]), '🛰️');
 }
 

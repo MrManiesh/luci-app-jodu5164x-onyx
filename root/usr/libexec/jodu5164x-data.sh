@@ -254,26 +254,28 @@ extract_block_lines() {
     '
 }
 
-# Parses "AT+BNRCELLH=?" output lines ("<idx> <ARFCN> <PCI> <RSRP> <RSRQ>")
-# into a JSON array, skipping unused/empty history slots (ARFCN=0, PCI=0).
+# Parses "AT+BNRCELLH" output lines ("<idx> <ARFCN> <PCI> <RSRP> <RSRQ>" or "+BNRCELLH: ...")
+# into a JSON array, skipping unused/empty history slots and deduplicating towers.
 build_nearby_cells_json() {
     raw="$1"
-    printf '%s\n' "$raw" | awk '
+    printf '%s\n' "$raw" | tr ',:' '  ' | awk '
         BEGIN { printf "["; first=1 }
-        NF>=5 {
-            # Find the index where arfcn and pci reside
-            idx = 0
-            for (i = 1; i <= NF - 4; i++) {
-                if ($i ~ /^[0-9]+$/ && $(i+1) ~ /^[0-9]+$/ && $(i+2) ~ /^[0-9]+$/) {
-                    idx = i; break;
-                }
-            }
-            if (idx > 0) {
-                arfcn = $(idx+1); pci = $(idx+2); rsrp = $(idx+3); rsrq = $(idx+4);
-                if (arfcn != "0" || pci != "0") {
-                    if (!first) printf ","
-                    printf "{\"pci\":\"%s\",\"arfcn\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\"}", pci, arfcn, rsrp, rsrq
-                    first = 0
+        {
+            for (i = 1; i <= NF - 3; i++) {
+                if ($i ~ /^[0-9]{4,8}$/ && $(i+1) ~ /^[0-9]{1,4}$/) {
+                    arfcn = $i
+                    pci = $(i+1)
+                    rsrp = $(i+2)
+                    rsrq = (i+3 <= NF) ? $(i+3) : "--"
+                    if (rsrp ~ /^-?[0-9]+$/ && (pci != "0" || arfcn != "0")) {
+                        key = pci "_" arfcn
+                        if (!(key in seen)) {
+                            seen[key] = 1
+                            if (!first) printf ","
+                            printf "{\"pci\":\"%s\",\"arfcn\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\"}", pci, arfcn, rsrp, rsrq
+                            first = 0
+                        }
+                    }
                 }
             }
         }
