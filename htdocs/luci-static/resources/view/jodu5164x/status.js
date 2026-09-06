@@ -851,11 +851,25 @@ return view.extend({
             });
         }
 
-        function field(label, inputEl) {
-            return E('div', { 'style': 'margin-bottom:14px' }, [
-                E('label', { 'style': 'display:block;margin-bottom:5px;color:#94a3b8;font-size:0.85em;font-weight:600;' }, label),
-                inputEl
+        function modalSection(title, icon, children) {
+            return E('div', { 'class': 'jodu-modal-sec' }, [
+                E('div', { 'class': 'jodu-modal-sec-title' }, [
+                    icon ? E('span', { 'style': 'margin-right:6px;' }, icon) : '',
+                    title
+                ]),
+                E('div', { 'class': 'jodu-modal-sec-body' }, children)
             ]);
+        }
+
+        function field(label, inputEl, hint) {
+            var children = [
+                E('label', { 'class': 'jodu-modal-label' }, label),
+                inputEl
+            ];
+            if (hint) {
+                children.push(E('div', { 'class': 'jodu-modal-hint' }, hint));
+            }
+            return E('div', { 'class': 'jodu-modal-field' }, children);
         }
 
         function openSettingsModal() {
@@ -891,20 +905,36 @@ return view.extend({
                 intervalInput.value = String(pollInterval);
 
                 var errorMsg = E('div', { 'style': 'color:#ef4444;font-size:0.85em;margin-top:10px;display:none' });
-                var scheduleRow = E('div', { 'style': 'display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:6px;' }, [
+                var scheduleRow = E('div', { 'style': 'display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:6px 0;' }, [
                     rebootEnabledInput,
-                    E('span', { 'style': 'color:#f8fafc;font-size:0.9em;' }, 'Enable daily scheduled reboot')
+                    E('span', { 'style': 'color:#f8fafc;font-size:0.88em;font-weight:600;' }, 'Enable daily scheduled reboot')
+                ]);
+
+                var secWeb = modalSection('WebUI Credentials', '🌐', [
+                    field('ODU IP Address', hostInput),
+                    field('WebUI Username', userInput),
+                    field('WebUI Password', passInput)
+                ]);
+
+                var secTelnet = modalSection('Telnet Telemetry Service', '⚡', [
+                    field('Telnet Port', portInput),
+                    field('Telnet Password', telnetPassInput, 'Leave blank if no telnet password is configured on ODU')
+                ]);
+
+                var secPoll = modalSection('Telemetry Polling Rate', '⏱️', [
+                    field('Stats Update Interval (1 - 10s)', intervalInput, 'Select how often LuCI and the background daemon query ODU radio and CPU stats')
+                ]);
+
+                var secReboot = modalSection('Automated Maintenance', '🔄', [
+                    scheduleRow,
+                    field('Scheduled Reboot Time', rebootTimeInput)
                 ]);
 
                 ui.showModal('⚙️ ODU Configuration & Settings', [
-                    field('ODU IP Address', hostInput),
-                    field('WebUI Username', userInput),
-                    field('WebUI Password', passInput),
-                    field('Telnet Port', portInput),
-                    field('Telnet Password (blank = none)', telnetPassInput),
-                    field('Stats Update Interval (1 - 10s)', intervalInput),
-                    scheduleRow,
-                    field('Scheduled Reboot Time', rebootTimeInput),
+                    secWeb,
+                    secTelnet,
+                    secPoll,
+                    secReboot,
                     errorMsg,
                     E('div', { 'class': 'right', 'style': 'margin-top:18px;display:flex;justify-content:flex-end;gap:8px' }, [
                         E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'),
@@ -1045,7 +1075,13 @@ return view.extend({
             '.jodu-idle-panel { padding:24px 0;text-align:center;color:#888; }',
             '.jodu-loading-box { text-align:center;padding:70px 20px; }',
             '.jodu-spinner { width:38px;height:38px;margin:0 auto;border:3px solid rgba(255,255,255,0.1);border-top-color:#38bdf8;border-radius:50%;animation:jodu-spin 0.8s linear infinite; }',
-            '@keyframes jodu-spin { to { transform:rotate(360deg); } }'
+            '@keyframes jodu-spin { to { transform:rotate(360deg); } }',
+            '.jodu-modal-sec { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:12px 14px; margin-bottom:12px; }',
+            '.jodu-modal-sec-title { font-size:0.78em; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px; display:flex; align-items:center; }',
+            '.jodu-modal-field { margin-bottom:10px; }',
+            '.jodu-modal-field:last-child { margin-bottom:0; }',
+            '.jodu-modal-label { display:block; margin-bottom:4px; color:#94a3b8; font-size:0.82em; font-weight:600; }',
+            '.jodu-modal-hint { font-size:0.74em; color:#64748b; margin-top:3px; }'
         ]);
 
         var topBar = E('div', { 'class': 'jodu-top-bar' }, [
