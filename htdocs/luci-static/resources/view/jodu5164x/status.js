@@ -296,7 +296,7 @@ function manualLockModal(defaultPci, defaultArfcn) {
 }
 
 function nearbyCellsSection(data) {
-    var cells = Array.isArray(data.nearby_cells) ? data.nearby_cells.slice() : (Array.isArray(data.neighbors) ? data.neighbors.slice() : []);
+    var cells = Array.isArray(data.nearby_cells) ? data.nearby_cells.slice() : [];
 
     // Always include the active primary serving cell so the connected tower is always visible
     var servingPci = data.pci || data.pcid;
@@ -346,14 +346,12 @@ function nearbyCellsSection(data) {
         ]),
         E('div', { 'style': 'display:flex;gap:6px;' }, actionBtns)
     ]);
-
     if (!cells.length) {
         return panel('Nearby Cells & Tower Scan', E('div', {}, [
             statusRow,
             E('p', { 'style': 'color:#64748b;font-size:0.88em;padding:12px 0;' }, 'No neighbouring cells detected in current sector scan. Use Manual Lock to bind to a specific tower.')
         ]), '🛰️');
     }
-
     var headerRow = E('tr', { 'class': 'jodu-th-tr' }, [
         E('th', { 'class': 'jodu-th' }, 'PCI'),
         E('th', { 'class': 'jodu-th' }, 'ARFCN'),
@@ -361,7 +359,6 @@ function nearbyCellsSection(data) {
         E('th', { 'class': 'jodu-th', 'style': 'text-align:right' }, 'RSRQ'),
         E('th', { 'class': 'jodu-th', 'style': 'text-align:right' }, 'Action')
     ]);
-
     var rows = cells.map(function (c) {
         var color = qualityColor('rsrp', c.rsrp);
         var pciDisplay = [E('span', { 'style': 'font-weight:700;' }, c.pci)];
@@ -384,11 +381,9 @@ function nearbyCellsSection(data) {
             ])
         ]);
     });
-
     var table = E('div', { 'style': 'max-height:280px;overflow-y:auto' }, [
         E('table', { 'class': 'jodu-table' }, [headerRow].concat(rows))
     ]);
-
     return panel('Nearby Cells & Tower Scan', E('div', {}, [statusRow, table]), '🛰️');
 }
 

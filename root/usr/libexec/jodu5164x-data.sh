@@ -254,28 +254,34 @@ extract_block_lines() {
     '
 }
 
-# Parses "AT+BNRCELLH" output lines ("<idx> <ARFCN> <PCI> <RSRP> <RSRQ>" or "+BNRCELLH: ...")
-# into a JSON array, skipping unused/empty history slots and deduplicating towers.
+# Parses "AT+BNRCELLH=?" output lines ("<idx> <ARFCN> <PCI> <RSRP> <RSRQ>")
+# into a JSON array, skipping unused/empty history slots (ARFCN=0, PCI=0).
 build_nearby_cells_json() {
     raw="$1"
-    printf '%s\n' "$raw" | tr ',:' '  ' | awk '
+    printf '%s\n' "$raw" | awk '
         BEGIN { printf "["; first=1 }
+        NF==5 && $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ {
+            arfcn=$2; pci=$3; rsrp=$4; rsrq=$5
+            sub(/\r$/, "", rsrq)
+            if (arfcn == "0" && pci == "0") next
+            if (!first) printf ","
+            printf "{\"pci\":\"%s\",\"arfcn\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\"}", pci, arfcn, rsrp, rsrq
+            first = 0
+            next
+        }
         {
-            for (i = 1; i <= NF - 3; i++) {
-                if ($i ~ /^[0-9]{4,8}$/ && $(i+1) ~ /^[0-9]{1,4}$/) {
-                    arfcn = $i
-                    pci = $(i+1)
-                    rsrp = $(i+2)
-                    rsrq = (i+3 <= NF) ? $(i+3) : "--"
-                    if (rsrp ~ /^-?[0-9]+$/ && (pci != "0" || arfcn != "0")) {
-                        key = pci "_" arfcn
-                        if (!(key in seen)) {
-                            seen[key] = 1
-                            if (!first) printf ","
-                            printf "{\"pci\":\"%s\",\"arfcn\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\"}", pci, arfcn, rsrp, rsrq
-                            first = 0
-                        }
-                    }
+            line = $0
+            gsub(/[,:]/, " ", line)
+            n = split(line, f)
+            for (i = 1; i <= n - 4; i++) {
+                if (f[i] ~ /^[0-9]+$/ && f[i+1] ~ /^[0-9]+$/ && f[i+2] ~ /^[0-9]+$/) {
+                    arfcn = f[i+1]; pci = f[i+2]; rsrp = f[i+3]; rsrq = f[i+4]
+                    sub(/\r$/, "", rsrq)
+                    if (arfcn == "0" && pci == "0") next
+                    if (!first) printf ","
+                    printf "{\"pci\":\"%s\",\"arfcn\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\"}", pci, arfcn, rsrp, rsrq
+                    first = 0
+                    next
                 }
             }
         }
