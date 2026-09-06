@@ -173,6 +173,17 @@ This package is specifically tailored for the JODU5164x series (JODU51641 / JODU
 
 ---
 
+## ⚠️ Disclaimer & Takedown Notice
+
+> **IMPORTANT**: This project is developed strictly for **educational, testing, research, and personal hobbyist purposes**. 
+> It is an independent open-source community effort and is **not** affiliated with, endorsed by, sponsored by, or associated with any telecommunications carrier, service provider, or hardware manufacturer.
+> 
+> All trademarks, service marks, trade names, and product names referenced in this repository are the property of their respective owners.
+> 
+> **Notice to Rights Holders & Manufacturers**: If you believe that any file, parameter, documentation, or code snippet in this repository infringes upon proprietary rights, contains confidential material, or should not be publicly hosted, please **open a GitHub Issue or contact the maintainer directly** (via email: `manishmatwacs@gmail.com` or through GitHub) for immediate review, modification, or takedown.
+
+---
+
 ## 📄 License & Credits
 
 - **License**: Distributed under the [GNU General Public License v3.0](LICENSE).
