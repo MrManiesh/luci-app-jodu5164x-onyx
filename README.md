@@ -2,14 +2,14 @@
 
 # luci-app-jodu5164x-status
 
-### Real-Time 5G Dashboard for Sercomm ODU (JODU51641 / JODU51642) on OpenWrt
+### Real-Time 5G Dashboard for ODU (JODU51641 / JODU51642) on OpenWrt
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-status/releases)
 [![OpenWrt](https://img.shields.io/badge/OpenWrt-23.05%20%7C%2024.10-success.svg)](https://openwrt.org)
 [![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-Compatible-success.svg)](https://immortalwrt.org)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-orange.svg)](LICENSE)
 
-A modern, feature-packed LuCI web dashboard extension designed specifically for **5G Outdoor Units (ODU)** (Sercomm **JODU51641** and **JODU51642**).
+A modern, feature-packed LuCI web dashboard extension designed specifically for **5G Outdoor Units (ODU)** (**JODU51641** and **JODU51642**).
 
 </div>
 
@@ -93,7 +93,7 @@ When using a 5G Outdoor Unit (CPE) connected directly to your OpenWrt router, ch
          Ethernet / LAN (IP: 192.168.225.1)
                    │
 ┌──────────────────▼───────────────────┐
-│     Sercomm ODU (JODU51641 / 51642)  │
+│     ODU (JODU51641 / 51642)  │
 │  - Telnet Provisioning on Port 23    │
 │  - /tmp/odu_monitor.sh (in RAM)      │
 │  - BusyBox httpd on Port 8080        │
@@ -110,7 +110,7 @@ When using a 5G Outdoor Unit (CPE) connected directly to your OpenWrt router, ch
 
 | Component | Requirement |
 |:---|:---|
-| **Supported Modems** | Sercomm ODU JODU51641, JODU51642 |
+| **Supported Modems** | ODU JODU51641, JODU51642 |
 | **Router OS** | OpenWrt 23.05, OpenWrt 24.10, ImmortalWrt (all architectures) |
 | **Package Managers** | Compatible with both modern APK (`apk add`) and legacy IPK (`opkg`) |
 | **Dependencies** | `luci-base`, `wget`, `telnet-bsd`, `luci-compat` |
@@ -139,7 +139,7 @@ After installation, refresh your browser and navigate to:
 
 ## ⚙️ Initial Configuration
 
-By default, the package assumes the Sercomm ODU is at the standard IP `192.168.225.1` with default telnet access.
+By default, the package assumes the ODU is at the standard IP `192.168.225.1` with default telnet access.
 
 If your network uses a different subnet or password:
 1. Click the **Settings** button in the top right of the 5G Dashboard.
@@ -168,7 +168,7 @@ Click the <b>Clear Locks</b> button in the Neighbouring Cells header, or click <
 
 <details>
 <summary><b>Does this work with other 5G modems or routers?</b></summary>
-This package is specifically tailored for the Sercomm JODU5164x series (JODU51641 / JODU51642) using Sercomm/Qualcomm internal CLI utilities (<code>cricli</code> / <code>atcli</code>). Modems from other manufacturers (ZTE, Huawei, Quectel) use different command interfaces.
+This package is specifically tailored for the JODU5164x series (JODU51641 / JODU51642) using Sercomm/Qualcomm internal CLI utilities (<code>cricli</code> / <code>atcli</code>). Modems from other manufacturers (ZTE, Huawei, Quectel) use different command interfaces.
 </details>
 
 ---
@@ -177,4 +177,4 @@ This package is specifically tailored for the Sercomm JODU5164x series (JODU5164
 
 - **License**: Distributed under the [GNU General Public License v3.0](LICENSE).
 - **Author**: Manish Matwa Choudhary
-- **Project**: Personal OpenWrt development project for Sercomm 5G CPE hardware.
+- **Project**: Personal OpenWrt development project for 5G CPE hardware.

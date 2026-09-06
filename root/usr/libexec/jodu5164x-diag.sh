@@ -1,6 +1,6 @@
 #!/bin/sh
 # jodu5164x-diag.sh
-# Diagnostic command runner for Sercomm ODU (JODU51641/JODU51642).
+# Diagnostic command runner for ODU (JODU51641/JODU51642).
 # Safely executes read-only diagnostic commands over telnet and returns JSON.
 #
 # Usage: /usr/libexec/jodu5164x-diag.sh <cmd_id>

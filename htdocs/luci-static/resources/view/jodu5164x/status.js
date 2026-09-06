@@ -419,7 +419,7 @@ function nearbyCellsSection(data) {
 
 function rebootOdu() {
     ui.showModal('Reboot 5G ODU?', [
-        E('p', {}, 'This will reboot the Sercomm ODU modem. Internet connectivity will drop for a minute or two while it re-initializes and syncs with the cell tower.'),
+        E('p', {}, 'This will reboot the ODU modem. Internet connectivity will drop for a minute or two while it re-initializes and syncs with the cell tower.'),
         E('div', { 'class': 'right', 'style': 'margin-top:16px;display:flex;justify-content:flex-end;gap:8px' }, [
             E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'),
             E('button', {
@@ -841,7 +841,7 @@ function renderDashboard(data) {
             E('div', { 'style': 'font-size:2.6em;margin-bottom:12px;' }, '⏸️'),
             E('h3', { 'style': 'margin:0 0 8px;font-size:1.3em;color:#f8fafc;' }, 'ODU Monitoring Paused'),
             E('p', { 'style': 'color:#94a3b8;max-width:480px;margin:0 auto;line-height:1.5;font-size:0.92em;' },
-                'The session has been freed so you can log into the native Sercomm ODU WebUI without single-login conflicts. Click "Monitoring: OFF" above when ready to resume live polling.')
+                'The session has been freed so you can log into the native ODU WebUI without single-login conflicts. Click "Monitoring: OFF" above when ready to resume live polling.')
         ]);
     }
     if (rebootState.inProgress) {
@@ -947,9 +947,11 @@ return view.extend({
 
     render: function () {
         var container = E('div', { 'id': 'jodu5164x-status-container' }, loadingPlaceholder());
+        var lastStatusData = null;
 
         function refreshNow() {
             return fetchStatus().then(function (newData) {
+                lastStatusData = newData;
                 var scrollEl = document.getElementById('jodu5164x-thermal-scroll');
                 var savedScrollTop = scrollEl ? scrollEl.scrollTop : null;
                 var refreshed = renderDashboard(newData);
@@ -959,6 +961,13 @@ return view.extend({
                     if (newScrollEl) newScrollEl.scrollTop = savedScrollTop;
                 }
                 if (typeof updateToggleBtn === 'function') updateToggleBtn(newData);
+                if (aimingSession.active) {
+                    if (!document.getElementById('jodu-aiming-modal-root')) {
+                        closeAimingModal();
+                    } else if (typeof updateAimingModal === 'function') {
+                        updateAimingModal(newData);
+                    }
+                }
             });
         }
 
@@ -1088,6 +1097,385 @@ return view.extend({
             });
         }
 
+        var aimingSession = {
+            active: false,
+            startRsrp: null,
+            peakRsrp: null,
+            peakSinr: null,
+            initialPci: null,
+            audioMuted: true
+        };
+
+        var audioCtx = null;
+        function playAimingBeep(rsrp) {
+            if (aimingSession.audioMuted) return;
+            try {
+                var AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                if (!audioCtx) audioCtx = new AudioContext();
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                var v = parseFloat(rsrp);
+                if (isNaN(v)) return;
+                var clamped = Math.max(-120, Math.min(-60, v));
+                var frac = (clamped - (-120)) / 60;
+                var freq = 350 + frac * 950;
+
+                var osc = audioCtx.createOscillator();
+                var gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                gain.gain.setValueAtTime(0.001, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.13);
+            } catch (e) {}
+        }
+
+        function closeAimingModal() {
+            aimingSession.active = false;
+            if (audioCtx && audioCtx.state !== 'closed') {
+                try { audioCtx.suspend(); } catch (e) {}
+            }
+            poll.remove(refreshNow);
+            poll.add(refreshNow, currentPollInterval);
+            ui.hideModal();
+        }
+
+        function openAimingModal() {
+            aimingSession.active = true;
+            aimingSession.startRsrp = null;
+            aimingSession.peakRsrp = null;
+            aimingSession.peakSinr = null;
+            aimingSession.initialPci = null;
+
+            // Accelerated 1-second real-time polling during alignment
+            poll.remove(refreshNow);
+            poll.add(refreshNow, 1);
+
+            var audioToggleBtn = E('button', {
+                'id': 'jodu-aim-audio-btn',
+                'class': 'btn jodu-aim-btn',
+                'style': aimingSession.audioMuted ? 'background:rgba(255,255,255,0.06);color:#94a3b8;border-color:rgba(255,255,255,0.12);' : 'background:rgba(16,185,129,0.2);color:#34d399;border-color:rgba(16,185,129,0.4);',
+                'click': function () {
+                    aimingSession.audioMuted = !aimingSession.audioMuted;
+                    if (!aimingSession.audioMuted) {
+                        audioToggleBtn.textContent = '🔊 Audio Tone: ON';
+                        audioToggleBtn.style.background = 'rgba(16,185,129,0.2)';
+                        audioToggleBtn.style.color = '#34d399';
+                        audioToggleBtn.style.borderColor = 'rgba(16,185,129,0.4)';
+                        if (lastStatusData) playAimingBeep(lastStatusData.rsrp);
+                    } else {
+                        audioToggleBtn.textContent = '🔇 Audio Tone: OFF';
+                        audioToggleBtn.style.background = 'rgba(255,255,255,0.06)';
+                        audioToggleBtn.style.color = '#94a3b8';
+                        audioToggleBtn.style.borderColor = 'rgba(255,255,255,0.12)';
+                    }
+                }
+            }, aimingSession.audioMuted ? '🔇 Audio Tone: OFF' : '🔊 Audio Tone: ON');
+
+            var resetPeakBtn = E('button', {
+                'class': 'btn jodu-aim-btn',
+                'style': 'background:rgba(255,255,255,0.06);color:#f1f5f9;border-color:rgba(255,255,255,0.12);',
+                'click': function () {
+                    if (lastStatusData) {
+                        var curR = parseFloat(lastStatusData.rsrp);
+                        var curS = parseFloat(lastStatusData.sinr);
+                        aimingSession.startRsrp = isNaN(curR) ? null : curR;
+                        aimingSession.peakRsrp = isNaN(curR) ? null : curR;
+                        aimingSession.peakSinr = isNaN(curS) ? null : curS;
+                        updateAimingModal(lastStatusData);
+                    } else {
+                        aimingSession.startRsrp = null;
+                        aimingSession.peakRsrp = null;
+                        aimingSession.peakSinr = null;
+                    }
+                    notify('Peak memory baseline reset.', 'info', 2000);
+                }
+            }, '🔄 Reset Peak');
+
+            var modalTop = E('div', { 'class': 'jodu-aiming-top' }, [
+                E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
+                    E('span', { 'class': 'jodu-pulse-dot', 'style': 'background:#38bdf8;' }),
+                    E('span', { 'style': 'font-weight:700;font-size:0.9em;letter-spacing:0.04em;color:#38bdf8;' }, 'REAL-TIME 1S ALIGNMENT STREAM')
+                ]),
+                E('div', { 'style': 'display:flex;gap:8px;align-items:center;' }, [
+                    audioToggleBtn,
+                    resetPeakBtn
+                ])
+            ]);
+
+            // Card 1: RSRP
+            var rsrpCard = E('div', { 'class': 'jodu-aiming-card' }, [
+                E('div', { 'class': 'jodu-aiming-title' }, 'PRIMARY SIGNAL STRENGTH (RSRP)'),
+                E('div', { 'id': 'jodu-aim-rsrp-jumbo', 'class': 'jodu-aiming-jumbo', 'style': 'color:#94a3b8;' }, [
+                    E('span', { 'id': 'jodu-aim-rsrp-val' }, '--'),
+                    E('span', { 'class': 'jodu-aiming-unit' }, 'dBm')
+                ]),
+                E('div', { 'style': 'display:flex;justify-content:center;gap:8px;align-items:center;margin-bottom:6px;' }, [
+                    E('span', { 'id': 'jodu-aim-rsrp-badge', 'class': 'jodu-badge', 'style': 'background:rgba(255,255,255,0.06);color:#94a3b8;' }, 'Sampling...'),
+                    E('span', { 'id': 'jodu-aim-rsrp-delta', 'class': 'jodu-badge', 'style': 'background:rgba(255,255,255,0.06);color:#94a3b8;' }, '● 0 dBm (baseline)')
+                ]),
+                E('div', { 'class': 'jodu-aiming-meter-track' }, [
+                    E('div', { 'id': 'jodu-aim-rsrp-fill', 'class': 'jodu-aiming-meter-fill', 'style': 'width:0%;background:#38bdf8;' }),
+                    E('div', { 'id': 'jodu-aim-rsrp-peak-marker', 'class': 'jodu-aiming-peak-pointer', 'style': 'left:0%;display:none;' })
+                ]),
+                E('div', { 'style': 'display:flex;justify-content:space-between;font-size:0.75em;color:#64748b;margin-top:4px;' }, [
+                    E('span', {}, '-120 dBm (Poor)'),
+                    E('span', { 'id': 'jodu-aim-rsrp-peak', 'style': 'color:#facc15;font-weight:700;' }, 'Peak: -- dBm'),
+                    E('span', {}, '-60 dBm (Max)')
+                ])
+            ]);
+
+            // Card 2: SINR
+            var sinrCard = E('div', { 'class': 'jodu-aiming-card' }, [
+                E('div', { 'class': 'jodu-aiming-title' }, 'RADIO PURITY & INTERFERENCE (SINR)'),
+                E('div', { 'id': 'jodu-aim-sinr-jumbo', 'class': 'jodu-aiming-jumbo', 'style': 'color:#94a3b8;' }, [
+                    E('span', { 'id': 'jodu-aim-sinr-val' }, '--'),
+                    E('span', { 'class': 'jodu-aiming-unit' }, 'dB')
+                ]),
+                E('div', { 'style': 'display:flex;justify-content:center;gap:8px;align-items:center;margin-bottom:6px;' }, [
+                    E('span', { 'id': 'jodu-aim-sinr-badge', 'class': 'jodu-badge', 'style': 'background:rgba(255,255,255,0.06);color:#94a3b8;' }, 'Sampling...'),
+                    E('span', { 'id': 'jodu-aim-rsrq-badge', 'class': 'jodu-badge', 'style': 'background:rgba(255,255,255,0.06);color:#94a3b8;' }, 'RSRQ: -- dB')
+                ]),
+                E('div', { 'class': 'jodu-aiming-meter-track' }, [
+                    E('div', { 'id': 'jodu-aim-sinr-fill', 'class': 'jodu-aiming-meter-fill', 'style': 'width:0%;background:#818cf8;' }),
+                    E('div', { 'id': 'jodu-aim-sinr-peak-marker', 'class': 'jodu-aiming-peak-pointer', 'style': 'left:0%;display:none;' })
+                ]),
+                E('div', { 'style': 'display:flex;justify-content:space-between;font-size:0.75em;color:#64748b;margin-top:4px;' }, [
+                    E('span', {}, '-5 dB (Noisy)'),
+                    E('span', { 'id': 'jodu-aim-sinr-peak', 'style': 'color:#facc15;font-weight:700;' }, 'Peak: -- dB'),
+                    E('span', {}, '+30 dB (Pristine)')
+                ])
+            ]);
+
+            var grid = E('div', { 'class': 'jodu-aiming-grid' }, [
+                rsrpCard,
+                sinrCard
+            ]);
+
+            // Handover Alert Box
+            var handoverAlert = E('div', {
+                'id': 'jodu-aim-handover',
+                'class': 'jodu-alert-banner',
+                'style': 'display:none;background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.35);color:#fbbf24;margin-bottom:14px;text-align:left;'
+            }, '');
+
+            // Cell Context Bar
+            var contextBar = E('div', { 'class': 'jodu-aiming-context' }, [
+                E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;' }, [
+                    E('div', {}, [
+                        E('div', { 'style': 'font-size:0.72em;color:#64748b;text-transform:uppercase;font-weight:700;letter-spacing:0.08em;' }, 'ACTIVE SERVING CELL'),
+                        E('div', { 'style': 'font-size:1.05em;font-weight:700;color:#f8fafc;margin-top:2px;' }, [
+                            E('span', { 'id': 'jodu-aim-serving-net' }, 'JioTrue 5G'),
+                            ' · Band ',
+                            E('span', { 'id': 'jodu-aim-serving-band', 'style': 'color:#38bdf8;' }, '--'),
+                            ' · PCI ',
+                            E('span', { 'id': 'jodu-aim-serving-pci', 'style': 'color:#facc15;' }, '--'),
+                            ' · ARFCN ',
+                            E('span', { 'id': 'jodu-aim-serving-arfcn', 'style': 'color:#a78bfa;' }, '--')
+                        ])
+                    ]),
+                    E('div', { 'id': 'jodu-aim-ca-badge', 'style': 'font-size:0.82em;color:#94a3b8;' }, 'Carrier Aggregation: Standalone')
+                ])
+            ]);
+
+            // Field Guide
+            var guide = E('div', { 'class': 'jodu-aiming-guide' }, [
+                E('div', { 'style': 'font-weight:700;color:#38bdf8;margin-bottom:4px;' }, '💡 Outdoor Antenna Aiming Quick Tips:'),
+                E('ul', { 'style': 'margin:0;padding-left:18px;' }, [
+                    E('li', {}, 'Rotate the antenna horizontally in slow 5°–10° increments and pause for 2 seconds at each angle to let modem AGC settle.'),
+                    E('li', {}, 'Use "Reset Peak" whenever relocating or adjusting elevation to establish a fresh baseline.'),
+                    E('li', {}, 'If target tower is known, lock the cell under "Nearby Cells" on the dashboard to prevent unintended handovers while turning.')
+                ])
+            ]);
+
+            var footer = E('div', { 'style': 'display:flex;justify-content:flex-end;gap:10px;margin-top:16px;' }, [
+                E('button', {
+                    'class': 'btn cbi-button-neutral',
+                    'style': 'padding:8px 20px;border-radius:8px;font-weight:600;',
+                    'click': closeAimingModal
+                }, '✖️ Exit Aiming Mode')
+            ]);
+
+            var modalRoot = E('div', { 'id': 'jodu-aiming-modal-root', 'class': 'jodu-aiming-modal' }, [
+                modalTop,
+                handoverAlert,
+                grid,
+                contextBar,
+                guide,
+                footer
+            ]);
+
+            ui.showModal('🎯 Outdoor Antenna Alignment / Aiming Mode', [modalRoot]);
+
+            if (lastStatusData) {
+                updateAimingModal(lastStatusData);
+            }
+        }
+
+        function updateAimingModal(data) {
+            if (!aimingSession.active) return;
+            var curRsrp = parseFloat(data.rsrp);
+            var curSinr = parseFloat(data.sinr);
+
+            // Audio tone
+            playAimingBeep(data.rsrp);
+
+            // Track peaks
+            if (!isNaN(curRsrp)) {
+                if (aimingSession.startRsrp == null) aimingSession.startRsrp = curRsrp;
+                if (aimingSession.peakRsrp == null || curRsrp > aimingSession.peakRsrp) {
+                    aimingSession.peakRsrp = curRsrp;
+                }
+            }
+            if (!isNaN(curSinr)) {
+                if (aimingSession.peakSinr == null || curSinr > aimingSession.peakSinr) {
+                    aimingSession.peakSinr = curSinr;
+                }
+            }
+
+            // Update RSRP card
+            var rsrpEl = document.getElementById('jodu-aim-rsrp-val');
+            var rsrpJumbo = document.getElementById('jodu-aim-rsrp-jumbo');
+            var rsrpBadge = document.getElementById('jodu-aim-rsrp-badge');
+            var rsrpDelta = document.getElementById('jodu-aim-rsrp-delta');
+            var rsrpFill = document.getElementById('jodu-aim-rsrp-fill');
+            var rsrpPeakMarker = document.getElementById('jodu-aim-rsrp-peak-marker');
+            var rsrpPeakText = document.getElementById('jodu-aim-rsrp-peak');
+
+            if (rsrpEl) {
+                if (!isNaN(curRsrp)) {
+                    rsrpEl.textContent = curRsrp.toFixed(0);
+                    var col = qualityColor('rsrp', curRsrp);
+                    rsrpJumbo.style.color = col;
+                    var qualPct = signalQualityPercent(curRsrp);
+                    var qualText = qualPct >= 75 ? 'Excellent Coverage' : (qualPct >= 45 ? 'Good Signal' : 'Weak Signal');
+                    rsrpBadge.textContent = qualText + ' (' + qualPct + '%)';
+                    rsrpBadge.style.background = col + '20';
+                    rsrpBadge.style.color = col;
+                    rsrpBadge.style.borderColor = col + '40';
+
+                    // Delta
+                    if (aimingSession.startRsrp != null) {
+                        var diff = Math.round(curRsrp - aimingSession.startRsrp);
+                        if (diff > 0) {
+                            rsrpDelta.textContent = '▲ +' + diff + ' dBm from start';
+                            rsrpDelta.style.color = '#34d399';
+                            rsrpDelta.style.background = 'rgba(16,185,129,0.15)';
+                        } else if (diff < 0) {
+                            rsrpDelta.textContent = '▼ ' + diff + ' dBm from start';
+                            rsrpDelta.style.color = '#f87171';
+                            rsrpDelta.style.background = 'rgba(239,68,68,0.15)';
+                        } else {
+                            rsrpDelta.textContent = '● 0 dBm (baseline)';
+                            rsrpDelta.style.color = '#94a3b8';
+                            rsrpDelta.style.background = 'rgba(255,255,255,0.06)';
+                        }
+                    }
+
+                    // Meter
+                    var fillPct = Math.max(0, Math.min(100, Math.round(((curRsrp - (-120)) / 60) * 100)));
+                    rsrpFill.style.width = fillPct + '%';
+                    rsrpFill.style.background = col;
+
+                    if (aimingSession.peakRsrp != null) {
+                        var peakPct = Math.max(0, Math.min(100, Math.round(((aimingSession.peakRsrp - (-120)) / 60) * 100)));
+                        rsrpPeakMarker.style.display = 'block';
+                        rsrpPeakMarker.style.left = peakPct + '%';
+                        rsrpPeakText.textContent = '🏆 Peak: ' + aimingSession.peakRsrp.toFixed(0) + ' dBm';
+                    }
+                } else {
+                    rsrpEl.textContent = '--';
+                    rsrpJumbo.style.color = '#94a3b8';
+                }
+            }
+
+            // Update SINR card
+            var sinrEl = document.getElementById('jodu-aim-sinr-val');
+            var sinrJumbo = document.getElementById('jodu-aim-sinr-jumbo');
+            var sinrBadge = document.getElementById('jodu-aim-sinr-badge');
+            var rsrqBadge = document.getElementById('jodu-aim-rsrq-badge');
+            var sinrFill = document.getElementById('jodu-aim-sinr-fill');
+            var sinrPeakMarker = document.getElementById('jodu-aim-sinr-peak-marker');
+            var sinrPeakText = document.getElementById('jodu-aim-sinr-peak');
+
+            if (sinrEl) {
+                if (!isNaN(curSinr)) {
+                    sinrEl.textContent = (curSinr > 0 ? '+' : '') + curSinr.toFixed(0);
+                    var colS = qualityColor('sinr', curSinr);
+                    sinrJumbo.style.color = colS;
+                    var sinrText = curSinr >= 15 ? 'Pristine Radio (Low Noise)' : (curSinr >= 5 ? 'Moderate Quality' : 'High Noise / Interference');
+                    sinrBadge.textContent = sinrText;
+                    sinrBadge.style.background = colS + '20';
+                    sinrBadge.style.color = colS;
+                    sinrBadge.style.borderColor = colS + '40';
+
+                    var fillPctS = Math.max(0, Math.min(100, Math.round(((curSinr - (-5)) / 35) * 100)));
+                    sinrFill.style.width = fillPctS + '%';
+                    sinrFill.style.background = colS;
+
+                    if (aimingSession.peakSinr != null) {
+                        var peakPctS = Math.max(0, Math.min(100, Math.round(((aimingSession.peakSinr - (-5)) / 35) * 100)));
+                        sinrPeakMarker.style.display = 'block';
+                        sinrPeakMarker.style.left = peakPctS + '%';
+                        sinrPeakText.textContent = '🏆 Peak: ' + (aimingSession.peakSinr > 0 ? '+' : '') + aimingSession.peakSinr.toFixed(0) + ' dB';
+                    }
+                } else {
+                    sinrEl.textContent = '--';
+                    sinrJumbo.style.color = '#94a3b8';
+                }
+                if (rsrqBadge && data.rsrq) {
+                    rsrqBadge.textContent = 'RSRQ: ' + data.rsrq + ' dB';
+                }
+            }
+
+            // Serving Cell Context & Handover Detector
+            var pci = data.physical_cell_id || data.pci || '--';
+            var arfcn = data.nr_earcn || data.arfcn || '--';
+            var band = data.band ? 'n' + data.band : '--';
+            var plmn = data.plmn || 'JioTrue 5G';
+
+            var pciEl = document.getElementById('jodu-aim-serving-pci');
+            var arfcnEl = document.getElementById('jodu-aim-serving-arfcn');
+            var bandEl = document.getElementById('jodu-aim-serving-band');
+            var netEl = document.getElementById('jodu-aim-serving-net');
+            var handoverEl = document.getElementById('jodu-aim-handover');
+            var caBadge = document.getElementById('jodu-aim-ca-badge');
+
+            if (pciEl) pciEl.textContent = pci;
+            if (arfcnEl) arfcnEl.textContent = arfcn;
+            if (bandEl) bandEl.textContent = band;
+            if (netEl) netEl.textContent = plmn;
+
+            if (pci !== '--') {
+                if (aimingSession.initialPci == null) {
+                    aimingSession.initialPci = pci;
+                } else if (aimingSession.initialPci !== pci && handoverEl) {
+                    handoverEl.style.display = 'block';
+                    handoverEl.innerHTML = '⚠️ <strong>TOWER HANDOVER DETECTED:</strong> Serving Cell changed from PCI <strong>' +
+                        aimingSession.initialPci + '</strong> to <strong>' + pci + '</strong>! You may have turned away from your target tower.';
+                }
+            }
+
+            if (caBadge) {
+                if (data.SCC_BAND || data.scc_band) {
+                    var sccB = data.SCC_BAND || data.scc_band;
+                    var sccR = data.SCC_RSRP || data.scc_rsrp || '--';
+                    caBadge.innerHTML = 'Carrier Aggregation: <span style="color:#c084fc;font-weight:700;">Active</span> (SCC B' + sccB + ' · RSRP ' + sccR + ' dBm)';
+                } else {
+                    caBadge.textContent = 'Carrier Aggregation: Single Carrier';
+                }
+            }
+        }
+
         // Initialize poll with configured interval (1 to 10 seconds, default 3)
         var initInterval = parseInt(uci.get('jodu5164x', 'main', 'poll_interval'), 10) || 3;
         if (initInterval < 1 || initInterval > 10) initInterval = 3;
@@ -1117,6 +1505,12 @@ return view.extend({
             toggleBtn.style.color = isOn ? COLOR_GOOD : COLOR_POOR;
             toggleBtn.style.borderColor = isOn ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)';
         }
+
+        var aimingBtn = E('button', {
+            'class': 'btn jodu-top-btn',
+            'style': 'background:linear-gradient(135deg, rgba(14,165,233,0.18), rgba(99,102,241,0.18));border:1px solid rgba(56,189,248,0.4);color:#38bdf8;',
+            'click': ui.createHandlerFn(this, openAimingModal)
+        }, '🎯 Aiming Mode');
 
         var refreshBtn = E('button', {
             'class': 'btn jodu-top-btn',
@@ -1195,6 +1589,21 @@ return view.extend({
             '.jodu-modal-field { margin-bottom:10px; }',
             '.jodu-modal-field:last-child { margin-bottom:0; }',
             '.jodu-modal-label { display:block; margin-bottom:4px; color:#94a3b8; font-size:0.82em; font-weight:600; }',
+            '.jodu-aiming-modal { font-family:inherit;color:#f8fafc;width:100%;box-sizing:border-box; }',
+            '.jodu-aiming-top { display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:16px; }',
+            '.jodu-aiming-grid { display:grid;grid-template-columns:repeat(2, 1fr);gap:16px;margin-bottom:16px; }',
+            '@media (max-width:680px) { .jodu-aiming-grid { grid-template-columns:1fr;gap:12px; } }',
+            '.jodu-aiming-card { background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);border-radius:14px;padding:16px;text-align:center;position:relative;overflow:hidden; }',
+            '.jodu-aiming-title { font-size:0.72em;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;font-weight:700;margin-bottom:6px; }',
+            '.jodu-aiming-jumbo { font-size:3.2em;font-weight:900;line-height:1.1;letter-spacing:-0.03em;margin:4px 0;transition:color 0.3s ease; }',
+            '.jodu-aiming-unit { font-size:0.4em;font-weight:600;color:#94a3b8;margin-left:4px; }',
+            '.jodu-aiming-meter-track { position:relative;height:12px;background:rgba(255,255,255,0.08);border-radius:6px;margin:14px 0 10px;overflow:visible; }',
+            '.jodu-aiming-meter-fill { height:100%;border-radius:6px;transition:width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease; }',
+            '.jodu-aiming-peak-pointer { position:absolute;top:-4px;width:4px;height:20px;background:#facc15;border-radius:2px;box-shadow:0 0 8px #facc15;transform:translateX(-50%);transition:left 0.4s cubic-bezier(0.4, 0, 0.2, 1); }',
+            '.jodu-aiming-context { background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px; }',
+            '.jodu-aiming-guide { background:rgba(56,189,248,0.04);border:1px dashed rgba(56,189,248,0.2);border-radius:10px;padding:10px 14px;font-size:0.82em;color:#94a3b8;line-height:1.5;margin-bottom:16px; }',
+            '.jodu-aim-btn { padding:6px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);font-weight:600;font-size:0.82em;cursor:pointer;transition:all 0.2s ease; }',
+            '.jodu-aim-btn:hover { filter:brightness(1.15);transform:translateY(-1px); }',
             '.jodu-modal-hint { font-size:0.74em; color:#64748b; margin-top:3px; }'
         ]);
 
@@ -1205,6 +1614,7 @@ return view.extend({
             ]),
             E('div', { 'class': 'jodu-actions' }, [
                 toggleBtn,
+                aimingBtn,
                 refreshBtn,
                 settingsBtn
             ])
