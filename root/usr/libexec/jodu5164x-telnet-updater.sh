@@ -81,5 +81,11 @@ fetch_once() {
 # Main loop - runs forever as a procd-managed background service.
 while true; do
     fetch_once
+    INT=$(uci -q get ${UCI_PKG}.main.poll_interval)
+    case "$INT" in
+        [1-9]|10) REFRESH_INTERVAL="$INT" ;;
+        *) REFRESH_INTERVAL=5 ;;
+    esac
+    [ "$REFRESH_INTERVAL" -lt 3 ] && REFRESH_INTERVAL=3
     sleep "$REFRESH_INTERVAL"
 done

@@ -6,6 +6,7 @@
 #
 # args: $1=host $2=username $3=password $4=telnet_port $5=telnet_password
 #       $6=reboot_schedule_enabled (0/1) $7=reboot_schedule_time (HH:MM)
+#       $8=poll_interval (1-10 seconds)
 
 UCI_PKG="jodu5164x"
 CRON_FILE="/etc/crontabs/root"
@@ -18,6 +19,14 @@ uci set ${UCI_PKG}.main.telnet_port="$4"
 uci set ${UCI_PKG}.main.telnet_password="$5"
 uci set ${UCI_PKG}.main.reboot_schedule_enabled="$6"
 uci set ${UCI_PKG}.main.reboot_schedule_time="$7"
+
+POLL_INT="$8"
+case "$POLL_INT" in
+    [1-9]|10) ;;
+    *) POLL_INT=3 ;;
+esac
+uci set ${UCI_PKG}.main.poll_interval="$POLL_INT"
+
 uci commit ${UCI_PKG}
 
 # ---- manage the scheduled-reboot cron entry ----
@@ -37,7 +46,7 @@ fi
 # Invalidate existing cookie so new password or host is picked up
 rm -f /tmp/jodu5164x_cookie.txt
 
-# Restart background daemon with newly configured credentials
+# Restart background daemon with newly configured credentials and interval
 /etc/init.d/jodu5164x-updater restart >/dev/null 2>&1 &
 
 echo "OK"

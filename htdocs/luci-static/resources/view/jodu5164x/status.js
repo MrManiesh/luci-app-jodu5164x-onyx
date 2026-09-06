@@ -1,133 +1,939 @@
-'use strict'; 'require view'; 'require fs'; 'require poll'; 'require ui'; 'require dom'; 'require uci'; var SCRIPT_PATH = '/usr/libexec/jodu5164x-data.sh'; function fetchStatus() { return fs.exec_direct(SCRIPT_PATH, []).then(function (res) { try { return JSON.parse(res); } catch (e) { return { server_link: 'OFFLINE', error: 'parse_error' }; } }).catch(function () { return { server_link: 'OFFLINE', error: 'exec_failed' }; }); }
-var COLOR_GOOD = '#2ecc71'; var COLOR_OK = '#f1c40f'; var COLOR_POOR = '#e74c3c'; var COLOR_NEUTRAL = '#aaa'; var rebootState = { inProgress: false, sawOffline: false }; var triggerRefresh = null; function notify(text, cls, duration) {
-    var n = ui.addNotification(null, E('p', {}, text), cls || 'info'); if (duration) { setTimeout(function () { if (n && n.parentNode) n.parentNode.removeChild(n); }, duration); }
+'use strict';
+'require view';
+'require fs';
+'require poll';
+'require ui';
+'require dom';
+'require uci';
+
+var SCRIPT_PATH = '/usr/libexec/jodu5164x-data.sh';
+
+var COLOR_GOOD = '#2ecc71';
+var COLOR_OK = '#f1c40f';
+var COLOR_POOR = '#e74c3c';
+var COLOR_NEUTRAL = '#aaa';
+var COLOR_BLUE = '#5b8def';
+
+var rebootState = { inProgress: false, sawOffline: false };
+var triggerRefresh = null;
+var currentPollInterval = 3;
+
+function notify(text, cls, duration) {
+    var n = ui.addNotification(null, E('p', {}, text), cls || 'info');
+    if (duration) {
+        setTimeout(function () {
+            if (n && n.parentNode) n.parentNode.removeChild(n);
+        }, duration);
+    }
     return n;
 }
-function qualityColor(kind, raw) {
-    var v = parseFloat(raw); if (raw == null || raw === '' || raw === 'NA' || raw === '--' || isNaN(v))
-        return COLOR_NEUTRAL; switch (kind) { case 'rsrp': if (v >= -90) return COLOR_GOOD; if (v >= -105) return COLOR_OK; return COLOR_POOR; case 'rsrq': if (v >= -10) return COLOR_GOOD; if (v >= -15) return COLOR_OK; return COLOR_POOR; case 'sinr': if (v >= 15) return COLOR_GOOD; if (v >= 0) return COLOR_OK; return COLOR_POOR; case 'bler': if (v <= 5) return COLOR_GOOD; if (v <= 15) return COLOR_OK; return COLOR_POOR; case 'speed': if (v >= 1000) return COLOR_GOOD; if (v >= 100) return COLOR_OK; return COLOR_POOR; default: return COLOR_NEUTRAL; }
+
+function fetchStatus() {
+    return fs.exec_direct(SCRIPT_PATH, []).then(function (res) {
+        try {
+            return JSON.parse(res);
+        } catch (e) {
+            return { server_link: 'OFFLINE', error: 'parse_error' };
+        }
+    }).catch(function () {
+        return { server_link: 'OFFLINE', error: 'exec_failed' };
+    });
 }
+
+function qualityColor(kind, raw) {
+    var v = parseFloat(raw);
+    if (raw == null || raw === '' || raw === 'NA' || raw === '--' || isNaN(v))
+        return COLOR_NEUTRAL;
+    switch (kind) {
+        case 'rsrp':
+            if (v >= -90) return COLOR_GOOD;
+            if (v >= -105) return COLOR_OK;
+            return COLOR_POOR;
+        case 'rsrq':
+            if (v >= -10) return COLOR_GOOD;
+            if (v >= -15) return COLOR_OK;
+            return COLOR_POOR;
+        case 'sinr':
+            if (v >= 15) return COLOR_GOOD;
+            if (v >= 0) return COLOR_OK;
+            return COLOR_POOR;
+        case 'bler':
+            if (v <= 5) return COLOR_GOOD;
+            if (v <= 15) return COLOR_OK;
+            return COLOR_POOR;
+        case 'speed':
+            if (v >= 1000) return COLOR_GOOD;
+            if (v >= 100) return COLOR_OK;
+            return COLOR_POOR;
+        default:
+            return COLOR_NEUTRAL;
+    }
+}
+
 function formatSpeed(raw) {
-    var v = parseFloat(raw); if (raw == null || raw === '' || raw === 'NA' || raw === '--' || isNaN(v))
-        return raw || 'NA'; if (v >= 1000) { var gbps = v / 1000; var gStr = (gbps % 1 === 0) ? gbps.toFixed(0) : gbps.toFixed(1); return gStr + ' Gigabit'; }
+    var v = parseFloat(raw);
+    if (raw == null || raw === '' || raw === 'NA' || raw === '--' || isNaN(v))
+        return raw || 'NA';
+    if (v >= 1000) {
+        var gbps = v / 1000;
+        var gStr = (gbps % 1 === 0) ? gbps.toFixed(0) : gbps.toFixed(1);
+        return gStr + ' Gigabit';
+    }
     return v + ' Mbps';
 }
+
 function formatUptime(raw) {
-    var v = parseInt(raw, 10); if (raw == null || raw === '' || raw === 'NA' || raw === '--' || isNaN(v))
-        return raw || 'NA'; var days = Math.floor(v / 86400); var hours = Math.floor((v % 86400) / 3600); var minutes = Math.floor((v % 3600) / 60); var seconds = v % 60; var parts = []; if (days > 0) parts.push(days + 'd'); if (days > 0 || hours > 0) parts.push(hours + 'h'); parts.push(minutes + 'm'); parts.push(seconds + 's'); return parts.join(' ');
+    var v = parseInt(raw, 10);
+    if (raw == null || raw === '' || raw === 'NA' || raw === '--' || isNaN(v))
+        return raw || 'NA';
+    var days = Math.floor(v / 86400);
+    var hours = Math.floor((v % 86400) / 3600);
+    var minutes = Math.floor((v % 3600) / 60);
+    var seconds = v % 60;
+    var parts = [];
+    if (days > 0) parts.push(days + 'd');
+    if (days > 0 || hours > 0) parts.push(hours + 'h');
+    parts.push(minutes + 'm');
+    parts.push(seconds + 's');
+    return parts.join(' ');
 }
-function signalQualityPercent(rsrp) { var v = parseFloat(rsrp); if (isNaN(v)) return null; var pct = ((v + 120) / 60) * 100; if (pct < 0) pct = 0; if (pct > 100) pct = 100; return Math.round(pct); }
+
+function signalQualityPercent(rsrp) {
+    var v = parseFloat(rsrp);
+    if (isNaN(v)) return null;
+    var pct = ((v + 120) / 60) * 100;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    return Math.round(pct);
+}
+
 function summaryCard(label, value, color, sublabel) {
-    var children = []; children.push(E('div', { 'style': 'font-size:1.4em;font-weight:700;color:' + (color || '#fff') + ';margin:6px 0' }, value)); if (sublabel) { children.push(E('div', { 'style': 'font-size:0.75em;color:#888' }, sublabel)); }
-    children.push(E('div', { 'style': 'font-size:0.7em;letter-spacing:0.06em;text-transform:uppercase;color:#888;margin-top:4px' }, label)); return E('div', { 'style': 'flex:1;min-width:140px;padding:16px;text-align:center' }, children);
+    var children = [];
+    children.push(E('div', { 'style': 'font-size:1.4em;font-weight:700;color:' + (color || '#fff') + ';margin:6px 0' }, value));
+    if (sublabel) {
+        children.push(E('div', { 'style': 'font-size:0.75em;color:#888' }, sublabel));
+    }
+    children.push(E('div', { 'style': 'font-size:0.7em;letter-spacing:0.06em;text-transform:uppercase;color:#888;margin-top:4px' }, label));
+    return E('div', { 'style': 'flex:1;min-width:140px;padding:16px;text-align:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;' }, children);
 }
-function summaryRow(data, online) { var qualityPct = signalQualityPercent(data.rsrp); var qualityColorVal = qualityPct == null ? COLOR_NEUTRAL : (qualityPct >= 70 ? COLOR_GOOD : (qualityPct >= 40 ? COLOR_OK : COLOR_POOR)); var noSim = data.sim_status === 'missing'; return E('div', { 'style': 'display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px' }, [noSim ? summaryCard('Network', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM') : summaryCard('Network', 'JioTrue 5G', '#5b8def', (data.plmn || '') + (data.operating_mode ? ' | NR5G-' + data.operating_mode : '')), summaryCard('Signal Quality', qualityPct != null ? qualityPct + '%' : 'NA', qualityColorVal), summaryCard('Connection', online ? 'LINK ACTIVE' : 'LINK DOWN', online ? COLOR_GOOD : COLOR_POOR)]); }
-function colorDot(color) { return E('span', { 'style': 'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:' + color }, ''); }
-function paramRow(label, value, color) { var cellStyle = 'padding:8px 10px;border-bottom:1px solid #2a2a2a;text-align:right'; var display = (value != null && value !== '') ? value : 'NA'; var cellChildren = color ? [colorDot(color), display] : [display]; return E('tr', {}, [E('td', { 'style': 'padding:8px 10px;border-bottom:1px solid #2a2a2a;color:#999' }, label), E('td', { 'style': cellStyle + (color ? ';color:' + color + ';font-weight:600' : '') }, cellChildren)]); }
-function isEmptyValue(v) { return v == null || v === '' || v === 'NA' || v === '--'; }
+
+function summaryRow(data, online) {
+    var qualityPct = signalQualityPercent(data.rsrp);
+    var qualityColorVal = qualityPct == null ? COLOR_NEUTRAL : (qualityPct >= 70 ? COLOR_GOOD : (qualityPct >= 40 ? COLOR_OK : COLOR_POOR));
+    var noSim = data.sim_status === 'missing';
+    return E('div', { 'style': 'display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px' }, [
+        noSim ? summaryCard('Network', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM') : summaryCard('Network', 'JioTrue 5G', '#5b8def', (data.plmn || '') + (data.operating_mode ? ' | NR5G-' + data.operating_mode : '')),
+        summaryCard('Signal Quality', qualityPct != null ? qualityPct + '%' : 'NA', qualityColorVal),
+        summaryCard('Connection', online ? 'LINK ACTIVE' : 'LINK DOWN', online ? COLOR_GOOD : COLOR_POOR)
+    ]);
+}
+
+function colorDot(color) {
+    return E('span', { 'style': 'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:' + color }, '');
+}
+
+function paramRow(label, value, color) {
+    var cellStyle = 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08);text-align:right';
+    var display = (value != null && value !== '') ? value : 'NA';
+    var cellChildren = color ? [colorDot(color), display] : [display];
+    return E('tr', {}, [
+        E('td', { 'style': 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08);color:#999' }, label),
+        E('td', { 'style': cellStyle + (color ? ';color:' + color + ';font-weight:600' : '') }, cellChildren)
+    ]);
+}
+
+function isEmptyValue(v) {
+    return v == null || v === '' || v === 'NA' || v === '--';
+}
+
 function secondaryCellPanel(merged) {
-    var band = merged['scc_band']; var pci = merged['scc_pci']; var rsrp = merged['scc_rsrp']; var caActive = !isEmptyValue(band) || !isEmptyValue(pci) || !isEmptyValue(rsrp); if (!caActive) { return panel('Cellular Parameters (Secondary Cell)', E('div', { 'style': 'padding:20px 0;text-align:center;color:#888' }, [E('div', { 'style': 'font-size:1.6em;margin-bottom:6px' }, '\u{1F4F6}'), E('p', { 'style': 'margin:0' }, 'Carrier Aggregation is not active in your area right now.')])); }
+    var band = merged['scc_band'];
+    var pci = merged['scc_pci'];
+    var rsrp = merged['scc_rsrp'];
+    var caActive = !isEmptyValue(band) || !isEmptyValue(pci) || !isEmptyValue(rsrp);
+    if (!caActive) {
+        return panel('Cellular Parameters (Secondary Cell)', E('div', { 'style': 'padding:20px 0;text-align:center;color:#888' }, [
+            E('div', { 'style': 'font-size:1.6em;margin-bottom:6px' }, '\u{1F4F6}'),
+            E('p', { 'style': 'margin:0' }, 'Carrier Aggregation is not active in your area right now.')
+        ]));
+    }
     return panel('Cellular Parameters (Secondary Cell)', cellTable('scc_', merged));
 }
-function cellTable(prefix, d) { var band = d[prefix + 'band']; var bw = d[prefix + 'bandwidth'] || d[prefix + 'bw']; var arfcn = d[prefix + 'arfcn']; var pci = d[prefix + 'pci']; var bler = d[prefix + 'bler']; var modulation = d[prefix + 'modulation']; var mimo = d[prefix + 'mimo']; var rsrp = d[prefix + 'rsrp']; var rsrq = d[prefix + 'rsrq']; var sinr = d[prefix + 'sinr']; var rows = [paramRow('Band', band), paramRow('Bandwidth', bw), paramRow('NR-ARFCN', arfcn), paramRow('Physical Cell ID', pci), paramRow('BLER (downlink)', (bler != null && bler !== 'NA' && bler !== '--') ? bler + ' %' : bler, qualityColor('bler', bler)), paramRow('Modulation', modulation), paramRow('MIMO', mimo), paramRow('SS-RSRP', (rsrp != null && rsrp !== 'NA' && rsrp !== '--') ? rsrp + ' dBm' : rsrp, qualityColor('rsrp', rsrp)), paramRow('SS-RSRQ', (rsrq != null && rsrq !== 'NA' && rsrq !== '--') ? rsrq + ' dB' : rsrq, qualityColor('rsrq', rsrq)), paramRow('SS-SINR', (sinr != null && sinr !== 'NA' && sinr !== '--') ? sinr + ' dB' : sinr, qualityColor('sinr', sinr))]; return E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.9em' }, rows); }
-function panel(title, contentNode) { return E('div', { 'style': 'flex:1;min-width:280px;padding:16px' }, [E('h3', { 'style': 'margin-top:0;color:#ddd' }, title), contentNode]); }
-function lockCell(pci, arfcn) { ui.showModal('Lock to Cell?', [E('p', {}, 'This will lock the modem to PCI ' + pci + ' / ARFCN ' + arfcn + '. If this cell has weak or no coverage, connectivity may drop until you unlock it.'), E('div', { 'class': 'right', 'style': 'margin-top:16px;display:flex;justify-content:flex-end;gap:8px' }, [E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'), E('button', { 'class': 'btn cbi-button-negative', 'click': function () { ui.hideModal(); notify('Locking to PCI ' + pci + ' / ARFCN ' + arfcn + '...', 'info', 4000); fs.exec_direct('/usr/libexec/jodu5164x-cell-lock.sh', ['lock', String(pci), String(arfcn)]).then(function () { if (triggerRefresh) triggerRefresh(); }).catch(function () { }); } }, 'Lock')])]); }
-function unlockCell() { ui.showModal('Unlock Cell?', [E('p', {}, 'This will remove the current cell lock and let the modem pick the best cell automatically.'), E('div', { 'class': 'right', 'style': 'margin-top:16px;display:flex;justify-content:flex-end;gap:8px' }, [E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'), E('button', { 'class': 'btn cbi-button-positive', 'click': function () { ui.hideModal(); notify('Unlocking cell...', 'info', 4000); fs.exec_direct('/usr/libexec/jodu5164x-cell-lock.sh', ['unlock']).then(function () { if (triggerRefresh) triggerRefresh(); }).catch(function () { }); } }, 'Unlock')])]); }
+
+function cellTable(prefix, d) {
+    var band = d[prefix + 'band'];
+    var bw = d[prefix + 'bandwidth'] || d[prefix + 'bw'];
+    var arfcn = d[prefix + 'arfcn'];
+    var pci = d[prefix + 'pci'];
+    var bler = d[prefix + 'bler'];
+    var modulation = d[prefix + 'modulation'];
+    var mimo = d[prefix + 'mimo'];
+    var rsrp = d[prefix + 'rsrp'];
+    var rsrq = d[prefix + 'rsrq'];
+    var sinr = d[prefix + 'sinr'];
+    var rows = [
+        paramRow('Band', band),
+        paramRow('Bandwidth', bw),
+        paramRow('NR-ARFCN', arfcn),
+        paramRow('Physical Cell ID', pci),
+        paramRow('BLER (downlink)', (bler != null && bler !== 'NA' && bler !== '--') ? bler + ' %' : bler, qualityColor('bler', bler)),
+        paramRow('Modulation', modulation),
+        paramRow('MIMO', mimo),
+        paramRow('SS-RSRP', (rsrp != null && rsrp !== 'NA' && rsrp !== '--') ? rsrp + ' dBm' : rsrp, qualityColor('rsrp', rsrp)),
+        paramRow('SS-RSRQ', (rsrq != null && rsrq !== 'NA' && rsrq !== '--') ? rsrq + ' dB' : rsrq, qualityColor('rsrq', rsrq)),
+        paramRow('SS-SINR', (sinr != null && sinr !== 'NA' && sinr !== '--') ? sinr + ' dB' : sinr, qualityColor('sinr', sinr))
+    ];
+    return E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.9em' }, rows);
+}
+
+function panel(title, contentNode) {
+    return E('div', { 'style': 'flex:1;min-width:280px;padding:16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;' }, [
+        E('h3', { 'style': 'margin-top:0;color:#ddd;font-size:1.05em;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;margin-bottom:12px;' }, title),
+        contentNode
+    ]);
+}
+
+function lockCell(pci, arfcn) {
+    ui.showModal('Lock to Cell?', [
+        E('p', {}, 'This will lock the modem to PCI ' + pci + ' / ARFCN ' + arfcn + '. If this cell has weak or no coverage, connectivity may drop until you unlock it.'),
+        E('div', { 'class': 'right', 'style': 'margin-top:16px;display:flex;justify-content:flex-end;gap:8px' }, [
+            E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'),
+            E('button', {
+                'class': 'btn cbi-button-negative',
+                'click': function () {
+                    ui.hideModal();
+                    notify('Locking to PCI ' + pci + ' / ARFCN ' + arfcn + '...', 'info', 4000);
+                    fs.exec_direct('/usr/libexec/jodu5164x-cell-lock.sh', ['lock', String(pci), String(arfcn)]).then(function () {
+                        if (triggerRefresh) triggerRefresh();
+                    }).catch(function () { });
+                }
+            }, 'Lock')
+        ])
+    ]);
+}
+
+function unlockCell() {
+    ui.showModal('Unlock Cell?', [
+        E('p', {}, 'This will remove the current cell lock and let the modem pick the best cell automatically.'),
+        E('div', { 'class': 'right', 'style': 'margin-top:16px;display:flex;justify-content:flex-end;gap:8px' }, [
+            E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'),
+            E('button', {
+                'class': 'btn cbi-button-positive',
+                'click': function () {
+                    ui.hideModal();
+                    notify('Unlocking cell...', 'info', 4000);
+                    fs.exec_direct('/usr/libexec/jodu5164x-cell-lock.sh', ['unlock']).then(function () {
+                        if (triggerRefresh) triggerRefresh();
+                    }).catch(function () { });
+                }
+            }, 'Unlock')
+        ])
+    ]);
+}
+
 function nearbyCellsSection(data) {
-    var cells = Array.isArray(data.nearby_cells) ? data.nearby_cells.slice() : []; cells.sort(function (a, b) { return parseFloat(b.rsrp) - parseFloat(a.rsrp); }); var lockStatus = data.cell_lock_status || 'UNKNOWN'; var isLocked = lockStatus !== 'UNLOCK' && lockStatus !== 'UNKNOWN'; var statusRow = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px' }, [E('span', { 'style': 'color:#aaa;font-size:0.85em' }, ['Lock Status: ', E('strong', { 'style': 'color:#eee' }, lockStatus)]), isLocked ? E('button', { 'class': 'btn cbi-button-positive', 'style': 'font-size:0.8em;padding:4px 10px', 'click': unlockCell }, 'Unlock') : '']); if (!cells.length) { return panel('Nearby Cells', E('div', {}, [statusRow, E('p', { 'style': 'color:#888' }, 'No nearby cell data available yet.')])); }
-    var headerRow = E('tr', {}, [E('th', { 'style': 'text-align:left;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'PCI'), E('th', { 'style': 'text-align:left;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'ARFCN'), E('th', { 'style': 'text-align:right;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'RSRP'), E('th', { 'style': 'text-align:right;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'RSRQ'), E('th', { 'style': 'padding:6px 8px' }, '')]); var rows = cells.map(function (c) { var color = qualityColor('rsrp', c.rsrp); return E('tr', {}, [E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid #2a2a2a' }, c.pci), E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid #2a2a2a' }, c.arfcn), E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:right;color:' + color }, c.rsrp + ' dBm'), E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:right;color:#999' }, c.rsrq + ' dB'), E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid #2a2a2a;text-align:right' }, [E('button', { 'class': 'btn', 'style': 'font-size:0.78em;padding:3px 8px', 'click': (function (pci, arfcn) { return function () { lockCell(pci, arfcn); }; })(c.pci, c.arfcn) }, 'Lock')])]); }); var table = E('div', { 'style': 'max-height:280px;overflow-y:auto' }, [E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.85em' }, [headerRow].concat(rows))]); return panel('Nearby Cells', E('div', {}, [statusRow, table]));
+    var cells = Array.isArray(data.nearby_cells) ? data.nearby_cells.slice() : [];
+    cells.sort(function (a, b) { return parseFloat(b.rsrp) - parseFloat(a.rsrp); });
+    var lockStatus = data.cell_lock_status || 'UNKNOWN';
+    var isLocked = lockStatus !== 'UNLOCK' && lockStatus !== 'UNKNOWN';
+    var statusRow = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px' }, [
+        E('span', { 'style': 'color:#aaa;font-size:0.85em' }, ['Lock Status: ', E('strong', { 'style': 'color:#eee' }, lockStatus)]),
+        isLocked ? E('button', { 'class': 'btn cbi-button-positive', 'style': 'font-size:0.8em;padding:4px 10px', 'click': unlockCell }, 'Unlock') : ''
+    ]);
+    if (!cells.length) {
+        return panel('Nearby Cells', E('div', {}, [statusRow, E('p', { 'style': 'color:#888' }, 'No nearby cell data available yet.')]));
+    }
+    var headerRow = E('tr', {}, [
+        E('th', { 'style': 'text-align:left;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'PCI'),
+        E('th', { 'style': 'text-align:left;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'ARFCN'),
+        E('th', { 'style': 'text-align:right;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'RSRP'),
+        E('th', { 'style': 'text-align:right;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'RSRQ'),
+        E('th', { 'style': 'padding:6px 8px' }, '')
+    ]);
+    var rows = cells.map(function (c) {
+        var color = qualityColor('rsrp', c.rsrp);
+        return E('tr', {}, [
+            E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.08)' }, c.pci),
+            E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.08)' }, c.arfcn),
+            E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.08);text-align:right;color:' + color }, c.rsrp + ' dBm'),
+            E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.08);text-align:right;color:#999' }, c.rsrq + ' dB'),
+            E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.08);text-align:right' }, [
+                E('button', {
+                    'class': 'btn', 'style': 'font-size:0.78em;padding:3px 8px',
+                    'click': (function (pci, arfcn) { return function () { lockCell(pci, arfcn); }; })(c.pci, c.arfcn)
+                }, 'Lock')
+            ])
+        ]);
+    });
+    var table = E('div', { 'style': 'max-height:280px;overflow-y:auto' }, [
+        E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.85em' }, [headerRow].concat(rows))
+    ]);
+    return panel('Nearby Cells', E('div', {}, [statusRow, table]));
 }
-function rebootOdu() { ui.showModal('Reboot ODU?', [E('p', {}, 'This will restart the ODU. The connection will drop for a minute or two while it reboots.'), E('div', { 'class': 'right', 'style': 'margin-top:16px;display:flex;justify-content:flex-end;gap:8px' }, [E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'), E('button', { 'class': 'btn cbi-button-negative', 'click': function () { ui.hideModal(); rebootState.inProgress = true; rebootState.sawOffline = false; if (triggerRefresh) triggerRefresh(); fs.exec_direct('/usr/libexec/jodu5164x-reboot.sh', []).catch(function () { }); setTimeout(function () { if (rebootState.inProgress) { rebootState.inProgress = false; if (triggerRefresh) triggerRefresh(); } }, 180000); } }, 'Reboot')])]); }
-var COLOR_BLUE = '#5b8def'; function ethSpeedColor(mbps) { var v = parseFloat(mbps); if (isNaN(v) || v <= 0) return COLOR_NEUTRAL; if (v >= 2500) return COLOR_GOOD; if (v >= 1000) return COLOR_BLUE; return COLOR_POOR; }
-function ethSpeedSuggestion(mbps) { var v = parseFloat(mbps); if (isNaN(v) || v <= 0 || v >= 1000) return ''; return '\u26a0 Link speed is only ' + v + ' Mbps. Use a Gigabit-rated Ethernet cable/port to reach 1 Gbps+.'; }
+
+function rebootOdu() {
+    ui.showModal('Reboot ODU?', [
+        E('p', {}, 'This will restart the ODU. The connection will drop for a minute or two while it reboots.'),
+        E('div', { 'class': 'right', 'style': 'margin-top:16px;display:flex;justify-content:flex-end;gap:8px' }, [
+            E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'),
+            E('button', {
+                'class': 'btn cbi-button-negative',
+                'click': function () {
+                    ui.hideModal();
+                    rebootState.inProgress = true;
+                    rebootState.sawOffline = false;
+                    if (triggerRefresh) triggerRefresh();
+                    fs.exec_direct('/usr/libexec/jodu5164x-reboot.sh', []).catch(function () { });
+                    setTimeout(function () {
+                        if (rebootState.inProgress) {
+                            rebootState.inProgress = false;
+                            if (triggerRefresh) triggerRefresh();
+                        }
+                    }, 180000);
+                }
+            }, 'Reboot')
+        ])
+    ]);
+}
+
+function ethSpeedColor(mbps) {
+    var v = parseFloat(mbps);
+    if (isNaN(v) || v <= 0) return COLOR_NEUTRAL;
+    if (v >= 2500) return COLOR_GOOD;
+    if (v >= 1000) return COLOR_BLUE;
+    return COLOR_POOR;
+}
+
+function ethSpeedSuggestion(mbps) {
+    var v = parseFloat(mbps);
+    if (isNaN(v) || v <= 0 || v >= 1000) return '';
+    return '\u26a0 Link speed is only ' + v + ' Mbps. Use a Gigabit-rated Ethernet cable/port to reach 1 Gbps+.';
+}
+
 function ethSection(data) {
-    var speedColor = ethSpeedColor(data.eth_speed); var rows = [paramRow('Link Status', data.eth_link_status), paramRow('Speed', formatSpeed(data.eth_speed), speedColor), paramRow('Duplex', data.eth_duplex)]; var table = E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.9em' }, rows); var children = [table]; var speedSuggestion = ethSpeedSuggestion(data.eth_speed); if (speedSuggestion) { children.push(E('div', { 'style': 'margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(231,76,60,0.12);color:' + COLOR_POOR + ';font-size:0.82em' }, speedSuggestion)); }
-    var uptimeSec = parseInt(data.odu_uptime_sec, 10); if (!isNaN(uptimeSec) && uptimeSec > 86400) { children.push(E('div', { 'style': 'margin-top:14px;padding:8px 10px;border-radius:6px;background:rgba(241,196,15,0.12);color:' + COLOR_OK + ';font-size:0.85em;font-weight:600' }, '\u26a0 Reboot Recommended \u2014 ODU uptime ' + formatUptime(data.odu_uptime_sec))); }
-    children.push(E('div', { 'style': 'margin-top:14px' }, [E('button', { 'class': 'btn cbi-button-negative', 'click': rebootOdu }, 'Reboot ODU')])); return panel('ODU Management', E('div', {}, children));
+    var speedColor = ethSpeedColor(data.eth_speed);
+    var rows = [
+        paramRow('Link Status', data.eth_link_status),
+        paramRow('Speed', formatSpeed(data.eth_speed), speedColor),
+        paramRow('Duplex', data.eth_duplex)
+    ];
+    var table = E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.9em' }, rows);
+    var children = [table];
+    var speedSuggestion = ethSpeedSuggestion(data.eth_speed);
+    if (speedSuggestion) {
+        children.push(E('div', { 'style': 'margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(231,76,60,0.12);color:' + COLOR_POOR + ';font-size:0.82em' }, speedSuggestion));
+    }
+    var uptimeSec = parseInt(data.odu_uptime_sec, 10);
+    if (!isNaN(uptimeSec) && uptimeSec > 86400) {
+        children.push(E('div', { 'style': 'margin-top:14px;padding:8px 10px;border-radius:6px;background:rgba(241,196,15,0.12);color:' + COLOR_OK + ';font-size:0.85em;font-weight:600' }, '\u26a0 Reboot Recommended \u2014 ODU uptime ' + formatUptime(data.odu_uptime_sec)));
+    }
+    children.push(E('div', { 'style': 'margin-top:14px' }, [
+        E('button', { 'class': 'btn cbi-button-negative', 'click': rebootOdu }, 'Reboot ODU')
+    ]));
+    return panel('ODU Management', E('div', {}, children));
 }
-function parseDataSize(str) { if (!str) return null; var m = String(str).match(/^([\d.]+)\s*([KMGT]?B)$/i); if (!m) return null; var num = parseFloat(m[1]); var unit = m[2].toUpperCase(); var mult = { B: 1, KB: 1024, MB: 1024 * 1024, GB: 1024 * 1024 * 1024, TB: 1024 * 1024 * 1024 * 1024 }[unit]; if (!mult) return null; return num * mult; }
-function formatBytes(n) { if (n == null || isNaN(n)) return '--'; if (n < 1024) return n.toFixed(0) + ' B'; if (n < 1024 * 1024) return (n / 1024).toFixed(2) + ' KB'; if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + ' MB'; return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB'; }
-var dataUsageHistory = []; var DATA_HISTORY_MAX_AGE_MS = 24 * 60 * 60 * 1000; var DATA_HISTORY_MIN_GAP_MS = 60 * 1000; function pushDataUsageHistory(totalBytes) { if (totalBytes == null || isNaN(totalBytes)) return; var now = Date.now(); var last = dataUsageHistory[dataUsageHistory.length - 1]; if (!last || (now - last.ts) >= DATA_HISTORY_MIN_GAP_MS) { dataUsageHistory.push({ ts: now, total: totalBytes }); var cutoff = now - DATA_HISTORY_MAX_AGE_MS; while (dataUsageHistory.length && dataUsageHistory[0].ts < cutoff) { dataUsageHistory.shift(); } } }
+
+function parseDataSize(str) {
+    if (!str) return null;
+    var m = String(str).match(/^([\d.]+)\s*([KMGT]?B)$/i);
+    if (!m) return null;
+    var num = parseFloat(m[1]);
+    var unit = m[2].toUpperCase();
+    var mult = { B: 1, KB: 1024, MB: 1024 * 1024, GB: 1024 * 1024 * 1024, TB: 1024 * 1024 * 1024 * 1024 }[unit];
+    if (!mult) return null;
+    return num * mult;
+}
+
+function formatBytes(n) {
+    if (n == null || isNaN(n)) return '--';
+    if (n < 1024) return n.toFixed(0) + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(2) + ' KB';
+    if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + ' MB';
+    return (n / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+var dataUsageHistory = [];
+var DATA_HISTORY_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+var DATA_HISTORY_MIN_GAP_MS = 60 * 1000;
+
+function pushDataUsageHistory(totalBytes) {
+    if (totalBytes == null || isNaN(totalBytes)) return;
+    var now = Date.now();
+    var last = dataUsageHistory[dataUsageHistory.length - 1];
+    if (!last || (now - last.ts) >= DATA_HISTORY_MIN_GAP_MS) {
+        dataUsageHistory.push({ ts: now, total: totalBytes });
+        var cutoff = now - DATA_HISTORY_MAX_AGE_MS;
+        while (dataUsageHistory.length && dataUsageHistory[0].ts < cutoff) {
+            dataUsageHistory.shift();
+        }
+    }
+}
+
 function usageInWindow(totalBytes, windowMs) {
-    if (totalBytes == null || isNaN(totalBytes) || !dataUsageHistory.length) return null; var now = Date.now(); var targetTs = now - windowMs; var candidate = null; for (var i = 0; i < dataUsageHistory.length; i++) { if (dataUsageHistory[i].ts >= targetTs) { candidate = dataUsageHistory[i]; break; } }
-    if (!candidate) candidate = dataUsageHistory[0]; var delta = totalBytes - candidate.total; if (delta < 0) delta = 0; return { bytes: delta, fullWindow: dataUsageHistory[0].ts <= targetTs, elapsedMs: now - dataUsageHistory[0].ts };
+    if (totalBytes == null || isNaN(totalBytes) || !dataUsageHistory.length) return null;
+    var now = Date.now();
+    var targetTs = now - windowMs;
+    var candidate = null;
+    for (var i = 0; i < dataUsageHistory.length; i++) {
+        if (dataUsageHistory[i].ts >= targetTs) {
+            candidate = dataUsageHistory[i];
+            break;
+        }
+    }
+    if (!candidate) candidate = dataUsageHistory[0];
+    var delta = totalBytes - candidate.total;
+    if (delta < 0) delta = 0;
+    return { bytes: delta, fullWindow: dataUsageHistory[0].ts <= targetTs, elapsedMs: now - dataUsageHistory[0].ts };
 }
-function formatShortDuration(sec) { if (sec < 60) return Math.round(sec) + 's'; if (sec < 3600) return Math.round(sec / 60) + 'm'; if (sec < 86400) return (sec / 3600).toFixed(1) + 'h'; return (sec / 86400).toFixed(1) + 'd'; }
+
+function formatShortDuration(sec) {
+    if (sec < 60) return Math.round(sec) + 's';
+    if (sec < 3600) return Math.round(sec / 60) + 'm';
+    if (sec < 86400) return (sec / 3600).toFixed(1) + 'h';
+    return (sec / 86400).toFixed(1) + 'd';
+}
+
 function dataUsageSection(data) {
-    var sentBytes = parseDataSize(data.data_sent); var receivedBytes = parseDataSize(data.data_received); var totalBytes = (sentBytes != null && receivedBytes != null) ? (sentBytes + receivedBytes) : null; pushDataUsageHistory(totalBytes); var rows = [paramRow('Data Sent', data.data_sent), paramRow('Data Received', data.data_received), paramRow('Packet Loss', data.packet_loss)]; var table = E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.9em' }, rows); var note = E('div', { 'style': 'margin-top:10px;font-size:0.78em;color:#888;font-style:italic' }, '\u26a0 These figures may not be accurate.'); var windows = [{ label: 'Last 5 min', ms: 5 * 60 * 1000, color: COLOR_BLUE }, { label: 'Last 1 hour', ms: 60 * 60 * 1000, color: COLOR_GOOD }, { label: 'Last 5 hours', ms: 5 * 60 * 60 * 1000, color: COLOR_OK }, { label: 'Last 24 hours', ms: 24 * 60 * 60 * 1000, color: '#c77dff' }]; var historyRows = windows.map(function (w) {
-        var result = usageInWindow(totalBytes, w.ms); var display = 'collecting...'; var color = COLOR_NEUTRAL; if (result != null) {
-            display = formatBytes(result.bytes); if (!result.fullWindow) { display += ' (tracked ' + formatShortDuration(result.elapsedMs / 1000) + ' so far)'; }
+    var sentBytes = parseDataSize(data.data_sent);
+    var receivedBytes = parseDataSize(data.data_received);
+    var totalBytes = (sentBytes != null && receivedBytes != null) ? (sentBytes + receivedBytes) : null;
+    pushDataUsageHistory(totalBytes);
+    var rows = [
+        paramRow('Data Sent', data.data_sent),
+        paramRow('Data Received', data.data_received),
+        paramRow('Packet Loss', data.packet_loss)
+    ];
+    var table = E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.9em' }, rows);
+    var note = E('div', { 'style': 'margin-top:10px;font-size:0.78em;color:#888;font-style:italic' }, '\u26a0 These figures may not be accurate.');
+    var windows = [
+        { label: 'Last 5 min', ms: 5 * 60 * 1000, color: COLOR_BLUE },
+        { label: 'Last 1 hour', ms: 60 * 60 * 1000, color: COLOR_GOOD },
+        { label: 'Last 5 hours', ms: 5 * 60 * 60 * 1000, color: COLOR_OK },
+        { label: 'Last 24 hours', ms: 24 * 60 * 60 * 1000, color: '#c77dff' }
+    ];
+    var historyRows = windows.map(function (w) {
+        var result = usageInWindow(totalBytes, w.ms);
+        var display = 'collecting...';
+        var color = COLOR_NEUTRAL;
+        if (result != null) {
+            display = formatBytes(result.bytes);
+            if (!result.fullWindow) {
+                display += ' (tracked ' + formatShortDuration(result.elapsedMs / 1000) + ' so far)';
+            }
             color = w.color;
         }
         return paramRow(w.label, display, color);
-    }); var historyTable = E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.85em;margin-top:6px' }, historyRows); var historyNote = E('div', { 'style': 'margin-top:8px;font-size:0.75em;color:#666;font-style:italic' }, 'Tracked since this page was opened.'); return panel('Data Usage', E('div', {}, [table, note, subheading('Usage Over Time'), historyTable, historyNote]));
+    });
+    var historyTable = E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.85em;margin-top:6px' }, historyRows);
+    var historyNote = E('div', { 'style': 'margin-top:8px;font-size:0.75em;color:#666;font-style:italic' }, 'Tracked since this page was opened.');
+    return panel('Data Usage', E('div', {}, [table, note, subheading('Usage Over Time'), historyTable, historyNote]));
 }
-function tempColor(celsius) { var v = parseFloat(celsius); if (isNaN(v)) return COLOR_NEUTRAL; if (v <= 45) return COLOR_GOOD; if (v <= 60) return COLOR_OK; return COLOR_POOR; }
-var SENSOR_NAME_MAP = { 'cpu': 'CPU', 'cpuss': 'CPU', 'gpu': 'GPU', 'modem': 'Modem', 'mdmss': 'Modem Subsystem', 'mdmq6': 'Modem Q6', 'aoss': 'AOSS', 'lte': 'LTE', 'sub6': 'Sub-6', 'ambient': 'Ambient', 'pa': 'PA', 'pa0': 'PA0', 'pa1': 'PA1', 'pa2': 'PA2', 'sdr': 'SDR', 'sdr0': 'SDR0', 'sdr1': 'SDR1', 'mmw': 'mmWave', 'mmw0': 'mmWave0', 'ific': 'IFIC', 'ific0': 'IFIC0' }; function friendlySensorName(rawType, fallbackZone) { if (!rawType) return fallbackZone || 'Sensor'; var tokens = rawType.split('-').filter(function (t) { return t && t.toLowerCase() !== 'usr'; }); if (!tokens.length) return rawType; var words = tokens.map(function (tok) { var key = tok.toLowerCase(); if (SENSOR_NAME_MAP[key]) return SENSOR_NAME_MAP[key]; return tok.charAt(0).toUpperCase() + tok.slice(1); }); return words.join(' '); }
-function usagePctColor(pct) { var v = parseFloat(pct); if (isNaN(v)) return COLOR_NEUTRAL; if (v <= 60) return COLOR_GOOD; if (v <= 85) return COLOR_OK; return COLOR_POOR; }
-function usageBar(pct, color) { var v = parseFloat(pct); var width = isNaN(v) ? 0 : Math.max(0, Math.min(100, v)); return E('div', { 'style': 'background:#2a2a2a;border-radius:4px;height:8px;overflow:hidden;margin-top:4px' }, [E('div', { 'style': 'width:' + width + '%;height:100%;background:' + color + ';transition:width .3s' }, '')]); }
-function formatKbAsMb(kb) { var v = parseFloat(kb); if (isNaN(v)) return null; return (v / 1024).toFixed(0); }
-var cpuHistory = []; var memHistory = []; var HISTORY_MAX = 300; function pushCpuHistory(pct) {
-    var v = parseFloat(pct); cpuHistory.push(isNaN(v) ? 0 : v); if (cpuHistory.length > HISTORY_MAX)
-        cpuHistory.shift();
+
+function tempColor(celsius) {
+    var v = parseFloat(celsius);
+    if (isNaN(v)) return COLOR_NEUTRAL;
+    if (v <= 45) return COLOR_GOOD;
+    if (v <= 60) return COLOR_OK;
+    return COLOR_POOR;
 }
+
+var SENSOR_NAME_MAP = {
+    'cpu': 'CPU', 'cpuss': 'CPU', 'gpu': 'GPU', 'modem': 'Modem',
+    'mdmss': 'Modem Subsystem', 'mdmq6': 'Modem Q6', 'aoss': 'AOSS',
+    'lte': 'LTE', 'sub6': 'Sub-6', 'ambient': 'Ambient', 'pa': 'PA',
+    'pa0': 'PA0', 'pa1': 'PA1', 'pa2': 'PA2', 'sdr': 'SDR',
+    'sdr0': 'SDR0', 'sdr1': 'SDR1', 'mmw': 'mmWave', 'mmw0': 'mmWave0',
+    'ific': 'IFIC', 'ific0': 'IFIC0'
+};
+
+function friendlySensorName(rawType, fallbackZone) {
+    if (!rawType) return fallbackZone || 'Sensor';
+    var tokens = rawType.split('-').filter(function (t) { return t && t.toLowerCase() !== 'usr'; });
+    if (!tokens.length) return rawType;
+    var words = tokens.map(function (tok) {
+        var key = tok.toLowerCase();
+        if (SENSOR_NAME_MAP[key]) return SENSOR_NAME_MAP[key];
+        return tok.charAt(0).toUpperCase() + tok.slice(1);
+    });
+    return words.join(' ');
+}
+
+function usagePctColor(pct) {
+    var v = parseFloat(pct);
+    if (isNaN(v)) return COLOR_NEUTRAL;
+    if (v <= 60) return COLOR_GOOD;
+    if (v <= 85) return COLOR_OK;
+    return COLOR_POOR;
+}
+
+function usageBar(pct, color) {
+    var v = parseFloat(pct);
+    var width = isNaN(v) ? 0 : Math.max(0, Math.min(100, v));
+    return E('div', { 'style': 'background:rgba(255,255,255,0.08);border-radius:4px;height:8px;overflow:hidden;margin-top:4px' }, [
+        E('div', { 'style': 'width:' + width + '%;height:100%;background:' + color + ';transition:width .3s' }, '')
+    ]);
+}
+
+function formatKbAsMb(kb) {
+    var v = parseFloat(kb);
+    if (isNaN(v)) return null;
+    return (v / 1024).toFixed(0);
+}
+
+var cpuHistory = [];
+var memHistory = [];
+var HISTORY_MAX = 300;
+
+function pushCpuHistory(pct) {
+    var v = parseFloat(pct);
+    cpuHistory.push(isNaN(v) ? 0 : v);
+    if (cpuHistory.length > HISTORY_MAX) cpuHistory.shift();
+}
+
 function pushMemHistory(pct) {
-    var v = parseFloat(pct); memHistory.push(isNaN(v) ? 0 : v); if (memHistory.length > HISTORY_MAX)
-        memHistory.shift();
+    var v = parseFloat(pct);
+    memHistory.push(isNaN(v) ? 0 : v);
+    if (memHistory.length > HISTORY_MAX) memHistory.shift();
 }
-function circleGauge(pct, color, size) { size = size || 130; var stroke = 10; var r = (size - stroke) / 2; var c = 2 * Math.PI * r; var v = parseFloat(pct); var frac = isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) / 100; var offset = c * (1 - frac); var mid = size / 2; var svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="background:transparent !important;background-color:transparent !important;display:block">' + '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="#2a2a2a" stroke-width="' + stroke + '"/>' + '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + offset.toFixed(1) + '" transform="rotate(-90 ' + mid + ' ' + mid + ')"/></svg>'; var wrap = E('div', { 'style': 'position:relative;width:' + size + 'px;height:' + size + 'px;margin:8px auto;background:transparent !important;background-color:transparent !important' }); wrap.innerHTML = svg; return wrap; }
-function gaugeWithLabel(pct, color, size, big, small) { var g = circleGauge(pct, color, size); var label = E('div', { 'style': 'position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center' }, [E('div', { 'style': 'font-size:1.8em;font-weight:700;color:' + color }, big), small ? E('div', { 'style': 'font-size:0.75em;color:#888;margin-top:2px' }, small) : '']); g.appendChild(label); return g; }
+
+function circleGauge(pct, color, size) {
+    size = size || 130;
+    var stroke = 10;
+    var r = (size - stroke) / 2;
+    var c = 2 * Math.PI * r;
+    var v = parseFloat(pct);
+    var frac = isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) / 100;
+    var offset = c * (1 - frac);
+    var mid = size / 2;
+    var svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="background:transparent !important;display:block">' +
+        '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="' + stroke + '"/>' +
+        '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + offset.toFixed(1) + '" transform="rotate(-90 ' + mid + ' ' + mid + ')" style="transition:stroke-dashoffset 0.5s ease"/></svg>';
+    var wrap = E('div', { 'style': 'position:relative;width:' + size + 'px;height:' + size + 'px;margin:8px auto;background:transparent !important' });
+    wrap.innerHTML = svg;
+    return wrap;
+}
+
+function gaugeWithLabel(pct, color, size, big, small) {
+    var g = circleGauge(pct, color, size);
+    var label = E('div', { 'style': 'position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center' }, [
+        E('div', { 'style': 'font-size:1.8em;font-weight:700;color:' + color }, big),
+        small ? E('div', { 'style': 'font-size:0.75em;color:#888;margin-top:2px' }, small) : ''
+    ]);
+    g.appendChild(label);
+    return g;
+}
+
 function sparkline(history, color, width, height) {
-    width = width || 260; height = height || 40; if (!history.length) { return E('div', { 'style': 'height:' + height + 'px' }); }
-    var max = 100; var step = history.length > 1 ? width / (history.length - 1) : width; var pts = []; for (var i = 0; i < history.length; i++) { var x = (i * step).toFixed(1); var y = (height - (history[i] / max) * height).toFixed(1); pts.push(x + ',' + y); }
-    var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" style="background:transparent !important;background-color:transparent !important;display:block">' + '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="2"/></svg>'; var wrap = E('div', { 'style': 'width:100%;background:transparent !important;background-color:transparent !important' }); wrap.innerHTML = svg; return wrap;
+    width = width || 260;
+    height = height || 40;
+    if (!history.length) {
+        return E('div', { 'style': 'height:' + height + 'px' });
+    }
+    var max = 100;
+    var step = history.length > 1 ? width / (history.length - 1) : width;
+    var pts = [];
+    for (var i = 0; i < history.length; i++) {
+        var x = (i * step).toFixed(1);
+        var y = (height - (history[i] / max) * height).toFixed(1);
+        pts.push(x + ',' + y);
+    }
+    var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" style="background:transparent !important;display:block">' +
+        '<polyline points="' + pts.join(' ')+ '" fill="none" stroke="' + color + '" stroke-width="2"/></svg>';
+    var wrap = E('div', { 'style': 'width:100%;background:transparent !important' });
+    wrap.innerHTML = svg;
+    return wrap;
 }
-function statLine(label, value) { return E('div', { 'style': 'display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #2a2a2a;font-size:0.9em' }, [E('span', { 'style': 'color:#999' }, label), E('span', { 'style': 'color:#ddd;font-weight:600' }, value)]); }
-function subheading(text) { return E('div', { 'style': 'text-align:center;color:#777;font-size:0.75em;letter-spacing:1px;text-transform:uppercase;margin:16px 0 8px' }, text); }
+
+function statLine(label, value) {
+    return E('div', { 'style': 'display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);font-size:0.9em' }, [
+        E('span', { 'style': 'color:#999' }, label),
+        E('span', { 'style': 'color:#ddd;font-weight:600' }, value)
+    ]);
+}
+
+function subheading(text) {
+    return E('div', { 'style': 'text-align:center;color:#777;font-size:0.75em;letter-spacing:1px;text-transform:uppercase;margin:16px 0 8px' }, text);
+}
+
 function cpuGaugePanel(data) {
-    pushCpuHistory(data.odu_cpu_pct); var cores = (data.odu_cpu_cores && data.odu_cpu_cores !== '--') ? data.odu_cpu_cores : null; var color = usagePctColor(data.odu_cpu_pct); var pctDisplay = (data.odu_cpu_pct != null && data.odu_cpu_pct !== '--') ? data.odu_cpu_pct + '%' : 'NA'; var title = (data.odu_cpu_model && data.odu_cpu_model !== 'Unknown' ? data.odu_cpu_model : 'CPU') +
-        (cores ? ' (' + cores + 'C/' + cores + 'T)' : ''); var content = E('div', {}, [gaugeWithLabel(data.odu_cpu_pct, color, 130, pctDisplay, cores ? cores + ' Cores' : null), statLine('Cores / Threads', cores ? (cores + 'C / ' + cores + 'T') : 'NA'), statLine('Tasks (Run/Total)', (data.odu_tasks_running !== '--' ? data.odu_tasks_running : 'NA') + ' / ' + (data.odu_tasks_total !== '--' ? data.odu_tasks_total : 'NA')), subheading('System Status'), statLine('Load Average', [data.odu_load1, data.odu_load5, data.odu_load15].join(', ')), statLine('Uptime', formatUptime(data.odu_uptime_sec)), subheading('Usage History (5 min)'), sparkline(cpuHistory, color)]); return panel(title, content);
+    pushCpuHistory(data.odu_cpu_pct);
+    var cores = (data.odu_cpu_cores && data.odu_cpu_cores !== '--') ? data.odu_cpu_cores : null;
+    var color = usagePctColor(data.odu_cpu_pct);
+    var pctDisplay = (data.odu_cpu_pct != null && data.odu_cpu_pct !== '--') ? data.odu_cpu_pct + '%' : 'NA';
+    var title = (data.odu_cpu_model && data.odu_cpu_model !== 'Unknown' ? data.odu_cpu_model : 'CPU') +
+        (cores ? ' (' + cores + 'C/' + cores + 'T)' : '');
+    var content = E('div', {}, [
+        gaugeWithLabel(data.odu_cpu_pct, color, 130, pctDisplay, cores ? cores + ' Cores' : null),
+        statLine('Cores / Threads', cores ? (cores + 'C / ' + cores + 'T') : 'NA'),
+        statLine('Tasks (Run/Total)', (data.odu_tasks_running !== '--' ? data.odu_tasks_running : 'NA') + ' / ' + (data.odu_tasks_total !== '--' ? data.odu_tasks_total : 'NA')),
+        subheading('System Status'),
+        statLine('Load Average', [data.odu_load1, data.odu_load5, data.odu_load15].join(', ')),
+        statLine('Uptime', formatUptime(data.odu_uptime_sec)),
+        subheading('Usage History (5 min)'),
+        sparkline(cpuHistory, color)
+    ]);
+    return panel(title, content);
 }
+
 function memGaugePanel(data) {
-    pushMemHistory(data.odu_mem_pct); var color = usagePctColor(data.odu_mem_pct); var pctDisplay = (data.odu_mem_pct != null && data.odu_mem_pct !== '--') ? data.odu_mem_pct + '%' : 'NA'; var usedMb = formatKbAsMb(data.odu_mem_used_kb); var totalMb = formatKbAsMb(data.odu_mem_total_kb); var freeMb = formatKbAsMb(data.odu_mem_free_kb); var cachedMb = formatKbAsMb(data.odu_mem_cached_kb); var buffersMb = formatKbAsMb(data.odu_mem_buffers_kb); var swapTotalMb = formatKbAsMb(data.odu_mem_swap_total_kb); var swapUsedMb = formatKbAsMb(data.odu_mem_swap_used_kb); var ramNote = ''; if (totalMb != null) { if (totalMb >= 600) { ramNote = E('div', { 'style': 'margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(91,141,239,0.12);color:' + COLOR_BLUE + ';font-size:0.82em' }, '\u2139 This ODU supports 2.5 Gigabit Ethernet.'); } else if (totalMb < 200) { ramNote = E('div', { 'style': 'margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.05);color:#888;font-size:0.82em' }, '\u2139 This ODU supports 1 Gigabit Ethernet.'); } }
-    var content = E('div', {}, [gaugeWithLabel(data.odu_mem_pct, color, 130, pctDisplay, usedMb != null ? usedMb + ' MB' : null), statLine('Physical Total', totalMb != null ? totalMb + ' MB' : 'NA'), statLine('Used', usedMb != null ? usedMb + ' MB' : 'NA'), statLine('Free', freeMb != null ? freeMb + ' MB' : 'NA'), statLine('Cached', cachedMb != null ? cachedMb + ' MB' : 'NA'), statLine('Buffers', buffersMb != null ? buffersMb + ' MB' : 'NA'), statLine('Swap', (swapUsedMb != null && swapTotalMb != null) ? (swapUsedMb + ' / ' + swapTotalMb + ' MB') : 'NA'), ramNote, subheading('Usage History (5 min)'), sparkline(memHistory, color)]); return panel('Memory', content);
+    pushMemHistory(data.odu_mem_pct);
+    var color = usagePctColor(data.odu_mem_pct);
+    var pctDisplay = (data.odu_mem_pct != null && data.odu_mem_pct !== '--') ? data.odu_mem_pct + '%' : 'NA';
+    var usedMb = formatKbAsMb(data.odu_mem_used_kb);
+    var totalMb = formatKbAsMb(data.odu_mem_total_kb);
+    var freeMb = formatKbAsMb(data.odu_mem_free_kb);
+    var cachedMb = formatKbAsMb(data.odu_mem_cached_kb);
+    var buffersMb = formatKbAsMb(data.odu_mem_buffers_kb);
+    var swapTotalMb = formatKbAsMb(data.odu_mem_swap_total_kb);
+    var swapUsedMb = formatKbAsMb(data.odu_mem_swap_used_kb);
+    var ramNote = '';
+    if (totalMb != null) {
+        if (totalMb >= 600) {
+            ramNote = E('div', { 'style': 'margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(91,141,239,0.12);color:' + COLOR_BLUE + ';font-size:0.82em' }, '\u2139 This ODU supports 2.5 Gigabit Ethernet.');
+        } else if (totalMb < 200) {
+            ramNote = E('div', { 'style': 'margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.05);color:#888;font-size:0.82em' }, '\u2139 This ODU supports 1 Gigabit Ethernet.');
+        }
+    }
+    var content = E('div', {}, [
+        gaugeWithLabel(data.odu_mem_pct, color, 130, pctDisplay, usedMb != null ? usedMb + ' MB' : null),
+        statLine('Physical Total', totalMb != null ? totalMb + ' MB' : 'NA'),
+        statLine('Used', usedMb != null ? usedMb + ' MB' : 'NA'),
+        statLine('Free', freeMb != null ? freeMb + ' MB' : 'NA'),
+        statLine('Cached', cachedMb != null ? cachedMb + ' MB' : 'NA'),
+        statLine('Buffers', buffersMb != null ? buffersMb + ' MB' : 'NA'),
+        statLine('Swap', (swapUsedMb != null && swapTotalMb != null) ? (swapUsedMb + ' / ' + swapTotalMb + ' MB') : 'NA'),
+        ramNote,
+        subheading('Usage History (5 min)'),
+        sparkline(memHistory, color)
+    ]);
+    return panel('Memory', content);
 }
-function cpuLoadBar(label, pct) { var v = parseFloat(pct); var display = isNaN(v) ? 'NA' : v.toFixed(1) + '%'; var color = usagePctColor(label === 'Idle' ? (100 - (isNaN(v) ? 0 : v)) : pct); return E('div', { 'style': 'margin-bottom:14px' }, [E('div', { 'style': 'display:flex;justify-content:space-between' }, [E('span', { 'style': 'color:#999' }, label), E('span', { 'style': 'font-weight:700;color:' + color }, display)]), usageBar(isNaN(v) ? 0 : v, color)]); }
-function cpuDetailPanel(data) { var content = E('div', {}, [cpuLoadBar('Idle', data.odu_cpu_idle), cpuLoadBar('User', data.odu_cpu_user), cpuLoadBar('Nice', data.odu_cpu_nice), cpuLoadBar('System', data.odu_cpu_system), cpuLoadBar('I/O Wait', data.odu_cpu_iowait), cpuLoadBar('IRQ', data.odu_cpu_irq), cpuLoadBar('Soft IRQ', data.odu_cpu_softirq), statLine('System Tasks', (data.odu_tasks_running !== '--' ? data.odu_tasks_running : 'NA') + ' / ' + (data.odu_tasks_total !== '--' ? data.odu_tasks_total : 'NA')), statLine('Context Switches / s', data.odu_ctxt_rate !== '--' ? data.odu_ctxt_rate + ' /s' : 'NA'), statLine('Hardware Interrupts / s', data.odu_intr_rate !== '--' ? data.odu_intr_rate + ' /s' : 'NA'), statLine('Active Connections', (data.odu_conntrack_count !== '--' && data.odu_conntrack_max !== '--') ? (data.odu_conntrack_count + ' / ' + data.odu_conntrack_max) : 'NA')]); return panel('CPU Detailed Load', content); }
+
+function cpuLoadBar(label, pct) {
+    var v = parseFloat(pct);
+    var display = isNaN(v) ? 'NA' : v.toFixed(1) + '%';
+    var color = usagePctColor(label === 'Idle' ? (100 - (isNaN(v) ? 0 : v)) : pct);
+    return E('div', { 'style': 'margin-bottom:14px' }, [
+        E('div', { 'style': 'display:flex;justify-content:space-between' }, [
+            E('span', { 'style': 'color:#999' }, label),
+            E('span', { 'style': 'font-weight:700;color:' + color }, display)
+        ]),
+        usageBar(isNaN(v) ? 0 : v, color)
+    ]);
+}
+
+function cpuDetailPanel(data) {
+    var content = E('div', {}, [
+        cpuLoadBar('Idle', data.odu_cpu_idle),
+        cpuLoadBar('User', data.odu_cpu_user),
+        cpuLoadBar('Nice', data.odu_cpu_nice),
+        cpuLoadBar('System', data.odu_cpu_system),
+        cpuLoadBar('I/O Wait', data.odu_cpu_iowait),
+        cpuLoadBar('IRQ', data.odu_cpu_irq),
+        cpuLoadBar('Soft IRQ', data.odu_cpu_softirq),
+        statLine('System Tasks', (data.odu_tasks_running !== '--' ? data.odu_tasks_running : 'NA') + ' / ' + (data.odu_tasks_total !== '--' ? data.odu_tasks_total : 'NA')),
+        statLine('Context Switches / s', data.odu_ctxt_rate !== '--' ? data.odu_ctxt_rate + ' /s' : 'NA'),
+        statLine('Hardware Interrupts / s', data.odu_intr_rate !== '--' ? data.odu_intr_rate + ' /s' : 'NA'),
+        statLine('Active Connections', (data.odu_conntrack_count !== '--' && data.odu_conntrack_max !== '--') ? (data.odu_conntrack_count + ' / ' + data.odu_conntrack_max) : 'NA')
+    ]);
+    return panel('CPU Detailed Load', content);
+}
+
 function thermalSection(data) {
-    var zones = Array.isArray(data.thermal_zones) ? data.thermal_zones : []; if (!zones.length) { return panel('ODU Temperature', E('p', { 'style': 'color:#888' }, 'No temperature data available (check Settings).')); }
-    var maxZone = zones.reduce(function (a, b) { return (parseFloat(b.temp_c) > parseFloat(a.temp_c)) ? b : a; }, zones[0]); var half = Math.ceil(zones.length / 2); var colA = zones.slice(0, half); var colB = zones.slice(half); function buildColumn(list) { var rows = list.map(function (z) { var label = friendlySensorName(z.type, z.zone); return paramRow(label, z.temp_c + ' \u00b0C', tempColor(z.temp_c)); }); return E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.85em' }, rows); }
-    var table = E('div', { 'id': 'jodu5164x-thermal-scroll', 'style': 'display:flex;gap:20px;flex-wrap:wrap' }, [E('div', { 'style': 'flex:1;min-width:220px' }, buildColumn(colA)), E('div', { 'style': 'flex:1;min-width:220px' }, buildColumn(colB))]); var maxLabel = friendlySensorName(maxZone.type, maxZone.zone); var header = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px' }, [E('span', { 'style': 'color:#888;font-size:0.8em' }, zones.length + ' sensors'), E('span', { 'style': 'font-weight:700;color:' + tempColor(maxZone.temp_c) }, 'Max: ' + maxZone.temp_c + ' \u00b0C (' + maxLabel + ')')]); return panel('ODU Temperature', E('div', {}, [header, table]));
+    var zones = Array.isArray(data.thermal_zones) ? data.thermal_zones : [];
+    if (!zones.length) {
+        return panel('ODU Temperature', E('p', { 'style': 'color:#888' }, 'No temperature data available (check Settings).'));
+    }
+    var maxZone = zones.reduce(function (a, b) {
+        return (parseFloat(b.temp_c) > parseFloat(a.temp_c)) ? b : a;
+    }, zones[0]);
+    var half = Math.ceil(zones.length / 2);
+    var colA = zones.slice(0, half);
+    var colB = zones.slice(half);
+    function buildColumn(list) {
+        var rows = list.map(function (z) {
+            var label = friendlySensorName(z.type, z.zone);
+            return paramRow(label, z.temp_c + ' \u00b0C', tempColor(z.temp_c));
+        });
+        return E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.85em' }, rows);
+    }
+    var table = E('div', { 'id': 'jodu5164x-thermal-scroll', 'style': 'display:flex;gap:20px;flex-wrap:wrap' }, [
+        E('div', { 'style': 'flex:1;min-width:220px' }, buildColumn(colA)),
+        E('div', { 'style': 'flex:1;min-width:220px' }, buildColumn(colB))
+    ]);
+    var maxLabel = friendlySensorName(maxZone.type, maxZone.zone);
+    var header = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px' }, [
+        E('span', { 'style': 'color:#888;font-size:0.8em' }, zones.length + ' sensors'),
+        E('span', { 'style': 'font-weight:700;color:' + tempColor(maxZone.temp_c) }, 'Max: ' + maxZone.temp_c + ' \u00b0C (' + maxLabel + ')')
+    ]);
+    return panel('ODU Temperature', E('div', {}, [header, table]));
 }
+
 function renderDashboard(data) {
-    var online = data.server_link === 'ONLINE'; var disabled = data.server_link === 'DISABLED'; if (disabled) { return E('div', { 'style': 'text-align:center;padding:60px 20px' }, [E('div', { 'style': 'font-size:2em;margin-bottom:10px' }, '\u23f8'), E('h3', { 'style': 'margin:0 0 8px' }, 'Monitoring Paused'), E('p', { 'style': 'color:#888;max-width:480px;margin:0 auto' }, 'This package has released its session so you can log into the ODU\u2019s own WebUI directly. Toggle "Monitoring: OFF" back to ON when you\u2019re done.')]); }
-    if (rebootState.inProgress) { if (!online) { rebootState.sawOffline = true; } else if (rebootState.sawOffline) { rebootState.inProgress = false; rebootState.sawOffline = false; notify('ODU is back online. Reloading page...', 'info', 3000); setTimeout(function () { window.location.reload(); }, 1500); } }
-    var rebootBanner = rebootState.inProgress ? E('div', { 'style': 'margin-bottom:16px;padding:10px 14px;border-radius:6px;background:rgba(91,141,239,0.12);color:#5b8def;font-weight:600;text-align:center' }, '\u23f3 ODU is rebooting \u2014 please wait, this can take a minute or two...') : ''; if (!online) { var diagMessages = []; if (data.webui_message) diagMessages.push(data.webui_message); if (data.telnet_message) diagMessages.push(data.telnet_message); if (!diagMessages.length) diagMessages.push('Could not reach JODU51641/JODU51642 (' + (data.error || 'unknown error') + ').'); return E('div', {}, [rebootBanner, summaryRow(data, false), E('div', { 'style': 'display:flex;flex-direction:column;gap:8px' }, diagMessages.map(function (msg) { return E('p', { 'class': 'alert-message warning' }, msg); }))]); }
-    var merged = Object.assign({}, data, { 'scc_band': data.SCC_BAND, 'scc_bw': data.SCC_BW, 'scc_arfcn': data.SCC_ARFCN, 'scc_pci': data.SCC_PCI, 'scc_bler': data.SCC_BLER, 'scc_mimo': data.SCC_MIMO, 'scc_modulation': data.SCC_MODULATION, 'scc_rsrp': data.SCC_RSRP, 'scc_rsrq': data.SCC_RSRQ, 'scc_sinr': data.SCC_SINR }); var noSim = data.sim_status === 'missing'; var primaryCellContent = noSim ? E('div', { 'style': 'padding:20px 0;text-align:center;color:#888' }, [E('div', { 'style': 'font-size:1.6em;margin-bottom:6px' }, '\u{1F4F3}'), E('p', { 'style': 'margin:0;color:#ddd;font-weight:600' }, 'No SIM Detected'), E('p', { 'style': 'margin:4px 0 0' }, 'Please Insert pSIM Or eSIM On Your ODU')]) : cellTable('', merged); var cellPanels = E('div', { 'style': 'display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px' }, [panel('Cellular Parameters (Primary Cell)', primaryCellContent), secondaryCellPanel(merged)]); var managementColumn = E('div', { 'style': 'display:flex;flex-direction:column;gap:16px;flex:2;min-width:420px' }, [ethSection(data), nearbyCellsSection(data)]); var bottomPanels = E('div', { 'style': 'display:flex;gap:16px;flex-wrap:wrap' }, [managementColumn, cpuGaugePanel(data), memGaugePanel(data), dataUsageSection(data), cpuDetailPanel(data)]); var telnetNotice = (data.telnet_status && data.telnet_status !== 'ok') ? E('div', { 'style': 'margin-bottom:16px;padding:8px 14px;border-radius:6px;background:rgba(241,196,15,0.1);color:' + COLOR_OK + ';font-size:0.85em' }, '\u26a0 ' + (data.telnet_message || 'Telnet issue \u2014 CPU/Temperature/Nearby Cells data unavailable.')) : ''; return E('div', {}, [rebootBanner, telnetNotice, summaryRow(data, true), cellPanels, bottomPanels, E('div', { 'style': 'margin-top:16px' }, thermalSection(data))]);
+    var online = data.server_link === 'ONLINE';
+    var disabled = data.server_link === 'DISABLED';
+    if (disabled) {
+        return E('div', { 'style': 'text-align:center;padding:60px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:12px;' }, [
+            E('div', { 'style': 'font-size:2em;margin-bottom:10px' }, '\u23f8'),
+            E('h3', { 'style': 'margin:0 0 8px' }, 'Monitoring Paused'),
+            E('p', { 'style': 'color:#888;max-width:480px;margin:0 auto' }, 'This package has released its session so you can log into the ODU\u2019s own WebUI directly. Toggle "Monitoring: OFF" back to ON when you\u2019re done.')
+        ]);
+    }
+    if (rebootState.inProgress) {
+        if (!online) {
+            rebootState.sawOffline = true;
+        } else if (rebootState.sawOffline) {
+            rebootState.inProgress = false;
+            rebootState.sawOffline = false;
+            notify('ODU is back online. Reloading page...', 'info', 3000);
+            setTimeout(function () { window.location.reload(); }, 1500);
+        }
+    }
+    var rebootBanner = rebootState.inProgress ? E('div', { 'style': 'margin-bottom:16px;padding:10px 14px;border-radius:6px;background:rgba(91,141,239,0.12);color:#5b8def;font-weight:600;text-align:center' }, '\u23f3 ODU is rebooting \u2014 please wait, this can take a minute or two...') : '';
+    if (!online) {
+        var diagMessages = [];
+        if (data.webui_message) diagMessages.push(data.webui_message);
+        if (data.telnet_message) diagMessages.push(data.telnet_message);
+        if (!diagMessages.length) diagMessages.push('Could not reach JODU51641/JODU51642 (' + (data.error || 'unknown error') + ').');
+        return E('div', {}, [
+            rebootBanner,
+            summaryRow(data, false),
+            E('div', { 'style': 'display:flex;flex-direction:column;gap:8px' }, diagMessages.map(function (msg) {
+                return E('p', { 'class': 'alert-message warning' }, msg);
+            }))
+        ]);
+    }
+    var merged = Object.assign({}, data, {
+        'scc_band': data.SCC_BAND,
+        'scc_bw': data.SCC_BW,
+        'scc_arfcn': data.SCC_ARFCN,
+        'scc_pci': data.SCC_PCI,
+        'scc_bler': data.SCC_BLER,
+        'scc_mimo': data.SCC_MIMO,
+        'scc_modulation': data.SCC_MODULATION,
+        'scc_rsrp': data.SCC_RSRP,
+        'scc_rsrq': data.SCC_RSRQ,
+        'scc_sinr': data.SCC_SINR
+    });
+    var noSim = data.sim_status === 'missing';
+    var primaryCellContent = noSim ? E('div', { 'style': 'padding:20px 0;text-align:center;color:#888' }, [
+        E('div', { 'style': 'font-size:1.6em;margin-bottom:6px' }, '\u{1F4F3}'),
+        E('p', { 'style': 'margin:0;color:#ddd;font-weight:600' }, 'No SIM Detected'),
+        E('p', { 'style': 'margin:4px 0 0' }, 'Please Insert pSIM Or eSIM On Your ODU')
+    ]) : cellTable('', merged);
+
+    var cellPanels = E('div', { 'style': 'display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px' }, [
+        panel('Cellular Parameters (Primary Cell)', primaryCellContent),
+        secondaryCellPanel(merged)
+    ]);
+    var managementColumn = E('div', { 'style': 'display:flex;flex-direction:column;gap:16px;flex:2;min-width:420px' }, [
+        ethSection(data),
+        nearbyCellsSection(data)
+    ]);
+    var bottomPanels = E('div', { 'style': 'display:flex;gap:16px;flex-wrap:wrap' }, [
+        managementColumn,
+        cpuGaugePanel(data),
+        memGaugePanel(data),
+        dataUsageSection(data),
+        cpuDetailPanel(data)
+    ]);
+    var telnetNotice = (data.telnet_status && data.telnet_status !== 'ok') ? E('div', { 'style': 'margin-bottom:16px;padding:8px 14px;border-radius:6px;background:rgba(241,196,15,0.1);color:' + COLOR_OK + ';font-size:0.85em' }, '\u26a0 ' + (data.telnet_message || 'Telnet issue \u2014 CPU/Temperature/Nearby Cells data unavailable.')) : '';
+
+    return E('div', {}, [
+        rebootBanner,
+        telnetNotice,
+        summaryRow(data, true),
+        cellPanels,
+        bottomPanels,
+        E('div', { 'style': 'margin-top:16px' }, thermalSection(data))
+    ]);
 }
-function loadingPlaceholder() { return E('div', { 'style': 'text-align:center;padding:60px 20px;color:#888' }, [E('div', { 'style': 'width:36px;height:36px;margin:0 auto 14px;border:3px solid #333;border-top-color:#5b8def;border-radius:50%;animation:jodu5164x-spin 0.8s linear infinite' }), E('style', {}, '@keyframes jodu5164x-spin { to { transform: rotate(360deg); } }'), E('p', { 'style': 'margin:0' }, 'Loading ODU status...')]); }
+
+function loadingPlaceholder() {
+    return E('div', { 'style': 'text-align:center;padding:60px 20px;color:#888' }, [
+        E('div', { 'style': 'width:36px;height:36px;margin:0 auto 14px;border:3px solid #333;border-top-color:#5b8def;border-radius:50%;animation:jodu5164x-spin 0.8s linear infinite' }),
+        E('style', {}, '@keyframes jodu5164x-spin { to { transform: rotate(360deg); } }'),
+        E('p', { 'style': 'margin:0' }, 'Loading ODU status...')
+    ]);
+}
+
 return view.extend({
-    load: function () { return uci.load('jodu5164x'); }, render: function () {
-        var container = E('div', { 'id': 'jodu5164x-status-container' }, loadingPlaceholder()); function refreshNow() {
+    load: function () {
+        return uci.load('jodu5164x');
+    },
+
+    render: function () {
+        var container = E('div', { 'id': 'jodu5164x-status-container' }, loadingPlaceholder());
+
+        function refreshNow() {
             return fetchStatus().then(function (newData) {
-                var scrollEl = document.getElementById('jodu5164x-thermal-scroll'); var savedScrollTop = scrollEl ? scrollEl.scrollTop : null; var refreshed = renderDashboard(newData); dom.content(container, refreshed); if (savedScrollTop !== null) { var newScrollEl = document.getElementById('jodu5164x-thermal-scroll'); if (newScrollEl) newScrollEl.scrollTop = savedScrollTop; }
+                var scrollEl = document.getElementById('jodu5164x-thermal-scroll');
+                var savedScrollTop = scrollEl ? scrollEl.scrollTop : null;
+                var refreshed = renderDashboard(newData);
+                dom.content(container, refreshed);
+                if (savedScrollTop !== null) {
+                    var newScrollEl = document.getElementById('jodu5164x-thermal-scroll');
+                    if (newScrollEl) newScrollEl.scrollTop = savedScrollTop;
+                }
                 if (typeof updateToggleBtn === 'function') updateToggleBtn(newData);
             });
         }
-        function field(label, inputEl) { return E('div', { 'style': 'margin-bottom:14px' }, [E('label', { 'style': 'display:block;margin-bottom:5px;color:#aaa;font-size:0.85em' }, label), inputEl]); }
+
+        function field(label, inputEl) {
+            return E('div', { 'style': 'margin-bottom:14px' }, [
+                E('label', { 'style': 'display:block;margin-bottom:5px;color:#aaa;font-size:0.85em' }, label),
+                inputEl
+            ]);
+        }
+
         function openSettingsModal() {
-            uci.unload('jodu5164x'); uci.load('jodu5164x').then(function () {
-                var host = uci.get('jodu5164x', 'main', 'host') || ''; var username = uci.get('jodu5164x', 'main', 'username') || ''; var password = uci.get('jodu5164x', 'main', 'password') || ''; var telnetPort = uci.get('jodu5164x', 'main', 'telnet_port') || '23'; var telnetPass = uci.get('jodu5164x', 'main', 'telnet_password') || ''; var rebootEnabled = uci.get('jodu5164x', 'main', 'reboot_schedule_enabled') === '1'; var rebootTime = uci.get('jodu5164x', 'main', 'reboot_schedule_time') || '03:00'; var inputStyle = 'width:100%;box-sizing:border-box'; var hostInput = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'value': host, 'style': inputStyle, 'placeholder': '192.168.225.1' }); var userInput = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'value': username, 'style': inputStyle, 'placeholder': 'Admin' }); var passInput = E('input', { 'type': 'password', 'class': 'cbi-input-password', 'value': password, 'style': inputStyle }); var portInput = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'value': telnetPort, 'style': inputStyle, 'placeholder': '23' }); var telnetPassInput = E('input', { 'type': 'password', 'class': 'cbi-input-password', 'value': telnetPass, 'style': inputStyle, 'placeholder': 'Leave blank if none' }); var rebootEnabledInput = E('input', { 'type': 'checkbox', 'checked': rebootEnabled || null }); var rebootTimeInput = E('input', { 'type': 'time', 'class': 'cbi-input-text', 'value': rebootTime, 'style': inputStyle }); var errorMsg = E('div', { 'style': 'color:#e74c3c;font-size:0.85em;margin-top:10px;display:none' }); var scheduleRow = E('div', { 'style': 'display:flex;align-items:center;gap:8px;margin-bottom:14px' }, [rebootEnabledInput, E('span', { 'style': 'color:#aaa;font-size:0.9em' }, 'Enable daily scheduled reboot')]); ui.showModal('ODU Configuration', [field('ODU IP Address', hostInput), field('WebUI Username', userInput), field('WebUI Password', passInput), field('Telnet Port', portInput), field('Telnet Password (blank = none)', telnetPassInput), scheduleRow, field('Scheduled Reboot Time', rebootTimeInput), errorMsg, E('div', { 'class': 'right', 'style': 'margin-top:18px;display:flex;justify-content:flex-end;gap:8px' }, [E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'), E('button', {
-                    'class': 'btn cbi-button-positive', 'click': ui.createHandlerFn(this, function () {
-                        var args = [hostInput.value.trim(), userInput.value.trim(), passInput.value, portInput.value.trim(), telnetPassInput.value, rebootEnabledInput.checked ? '1' : '0', rebootTimeInput.value || '03:00']; return fs.exec_direct('/usr/libexec/jodu5164x-set-config.sh', args).then(function (res) {
-                            if (!res || res.indexOf('OK') === -1) { throw new Error('unexpected response from config writer'); }
-                            uci.unload('jodu5164x'); ui.hideModal(); notify('Settings saved.', 'info', 4000); return refreshNow();
-                        }).catch(function (e) { errorMsg.style.display = 'block'; errorMsg.textContent = 'Save failed: ' + e.message; });
-                    })
-                }, 'Save & Apply')])]);
+            uci.unload('jodu5164x');
+            uci.load('jodu5164x').then(function () {
+                var host = uci.get('jodu5164x', 'main', 'host') || '';
+                var username = uci.get('jodu5164x', 'main', 'username') || '';
+                var password = uci.get('jodu5164x', 'main', 'password') || '';
+                var telnetPort = uci.get('jodu5164x', 'main', 'telnet_port') || '23';
+                var telnetPass = uci.get('jodu5164x', 'main', 'telnet_password') || '';
+                var rebootEnabled = uci.get('jodu5164x', 'main', 'reboot_schedule_enabled') === '1';
+                var rebootTime = uci.get('jodu5164x', 'main', 'reboot_schedule_time') || '03:00';
+                var pollInterval = uci.get('jodu5164x', 'main', 'poll_interval') || '3';
+
+                var inputStyle = 'width:100%;box-sizing:border-box';
+                var hostInput = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'value': host, 'style': inputStyle, 'placeholder': '192.168.225.1' });
+                var userInput = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'value': username, 'style': inputStyle, 'placeholder': 'Admin' });
+                var passInput = E('input', { 'type': 'password', 'class': 'cbi-input-password', 'value': password, 'style': inputStyle });
+                var portInput = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'value': telnetPort, 'style': inputStyle, 'placeholder': '23' });
+                var telnetPassInput = E('input', { 'type': 'password', 'class': 'cbi-input-password', 'value': telnetPass, 'style': inputStyle, 'placeholder': 'Leave blank if none' });
+                var rebootEnabledInput = E('input', { 'type': 'checkbox', 'checked': rebootEnabled || null });
+                var rebootTimeInput = E('input', { 'type': 'time', 'class': 'cbi-input-text', 'value': rebootTime, 'style': inputStyle });
+
+                var intervalOptions = [];
+                for (var s = 1; s <= 10; s++) {
+                    var desc = s + ' second' + (s > 1 ? 's' : '');
+                    if (s === 1) desc += ' (Real-Time)';
+                    else if (s === 3) desc += ' (Recommended)';
+                    else if (s === 10) desc += ' (Low CPU)';
+                    intervalOptions.push(E('option', { 'value': String(s) }, desc));
+                }
+                var intervalInput = E('select', { 'class': 'cbi-input-select', 'style': inputStyle }, intervalOptions);
+                intervalInput.value = String(pollInterval);
+
+                var errorMsg = E('div', { 'style': 'color:#e74c3c;font-size:0.85em;margin-top:10px;display:none' });
+                var scheduleRow = E('div', { 'style': 'display:flex;align-items:center;gap:8px;margin-bottom:14px' }, [
+                    rebootEnabledInput,
+                    E('span', { 'style': 'color:#aaa;font-size:0.9em' }, 'Enable daily scheduled reboot')
+                ]);
+
+                ui.showModal('ODU Configuration', [
+                    field('ODU IP Address', hostInput),
+                    field('WebUI Username', userInput),
+                    field('WebUI Password', passInput),
+                    field('Telnet Port', portInput),
+                    field('Telnet Password (blank = none)', telnetPassInput),
+                    field('Stats Update Interval (1 - 10s)', intervalInput),
+                    scheduleRow,
+                    field('Scheduled Reboot Time', rebootTimeInput),
+                    errorMsg,
+                    E('div', { 'class': 'right', 'style': 'margin-top:18px;display:flex;justify-content:flex-end;gap:8px' }, [
+                        E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'),
+                        E('button', {
+                            'class': 'btn cbi-button-positive',
+                            'click': ui.createHandlerFn(this, function () {
+                                var args = [
+                                    hostInput.value.trim(),
+                                    userInput.value.trim(),
+                                    passInput.value,
+                                    portInput.value.trim(),
+                                    telnetPassInput.value,
+                                    rebootEnabledInput.checked ? '1' : '0',
+                                    rebootTimeInput.value || '03:00',
+                                    intervalInput.value || '3'
+                                ];
+                                return fs.exec_direct('/usr/libexec/jodu5164x-set-config.sh', args).then(function (res) {
+                                    if (!res || res.indexOf('OK') === -1) {
+                                        throw new Error('unexpected response from config writer');
+                                    }
+                                    uci.unload('jodu5164x');
+                                    ui.hideModal();
+                                    notify('Settings saved. Update interval: ' + intervalInput.value + 's', 'info', 4000);
+
+                                    var newInterval = parseInt(intervalInput.value, 10) || 3;
+                                    if (currentPollInterval !== newInterval) {
+                                        currentPollInterval = newInterval;
+                                        poll.remove(refreshNow);
+                                        poll.add(refreshNow, currentPollInterval);
+                                    }
+                                    return refreshNow();
+                                }).catch(function (e) {
+                                    errorMsg.style.display = 'block';
+                                    errorMsg.textContent = 'Save failed: ' + e.message;
+                                });
+                            })
+                        }, 'Save & Apply')
+                    ])
+                ]);
             });
         }
-        poll.add(refreshNow, 1); triggerRefresh = refreshNow; var toggleBtn = E('button', { 'class': 'btn', 'style': 'position:absolute;left:0;top:50%;transform:translateY(-50%)', 'click': ui.createHandlerFn(this, function () { var willEnable = toggleBtn.getAttribute('data-state') !== 'on'; return fs.exec_direct('/usr/libexec/jodu5164x-toggle.sh', [willEnable ? '1' : '0']).then(function () { return refreshNow(); }).catch(function (e) { notify('Failed to toggle monitoring: ' + e.message, 'danger', 5000); }); }) }, 'Monitoring: ...'); function updateToggleBtn(st) { var isOn = st.server_link !== 'DISABLED'; toggleBtn.setAttribute('data-state', isOn ? 'on' : 'off'); toggleBtn.textContent = isOn ? 'Monitoring: ON' : 'Monitoring: OFF'; toggleBtn.style.color = isOn ? COLOR_GOOD : COLOR_POOR; }
-        refreshNow(); return E('div', { 'class': 'cbi-map' }, [E('div', { 'style': 'position:relative;padding:10px 0 18px;text-align:center' }, [toggleBtn, E('button', { 'class': 'btn', 'style': 'position:absolute;right:0;top:50%;transform:translateY(-50%)', 'click': ui.createHandlerFn(this, openSettingsModal) }, 'Settings'), E('h2', { 'style': 'margin:0;letter-spacing:0.03em;background:linear-gradient(90deg,#5b8def,#8f6ae8);-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block' }, 'JODU51641/JODU51642 Status Dashboard'), E('div', { 'style': 'font-size:0.72em;letter-spacing:0.18em;text-transform:uppercase;color:#777;margin-top:4px' }, '5G ODU Monitoring')]), container]);
-    }, handleSaveApply: null, handleSave: null, handleReset: null
+
+        // Initialize poll with configured interval (1 to 10 seconds, default 3)
+        var initInterval = parseInt(uci.get('jodu5164x', 'main', 'poll_interval'), 10) || 3;
+        if (initInterval < 1 || initInterval > 10) initInterval = 3;
+        currentPollInterval = initInterval;
+        poll.add(refreshNow, currentPollInterval);
+        triggerRefresh = refreshNow;
+
+        var toggleBtn = E('button', {
+            'class': 'btn',
+            'style': 'position:absolute;left:0;top:50%;transform:translateY(-50%)',
+            'click': ui.createHandlerFn(this, function () {
+                var willEnable = toggleBtn.getAttribute('data-state') !== 'on';
+                return fs.exec_direct('/usr/libexec/jodu5164x-toggle.sh', [willEnable ? '1' : '0']).then(function () {
+                    return refreshNow();
+                }).catch(function (e) {
+                    notify('Failed to toggle monitoring: ' + e.message, 'danger', 5000);
+                });
+            })
+        }, 'Monitoring: ...');
+
+        function updateToggleBtn(st) {
+            var isOn = st.server_link !== 'DISABLED';
+            toggleBtn.setAttribute('data-state', isOn ? 'on' : 'off');
+            toggleBtn.textContent = isOn ? 'Monitoring: ON' : 'Monitoring: OFF';
+            toggleBtn.style.color = isOn ? COLOR_GOOD : COLOR_POOR;
+        }
+
+        var refreshBtn = E('button', {
+            'class': 'btn',
+            'style': 'position:absolute;right:88px;top:50%;transform:translateY(-50%)',
+            'click': ui.createHandlerFn(this, function () {
+                refreshBtn.textContent = '🔄 ...';
+                return refreshNow().then(function () {
+                    refreshBtn.textContent = '🔄 Refresh';
+                });
+            })
+        }, '🔄 Refresh');
+
+        var settingsBtn = E('button', {
+            'class': 'btn',
+            'style': 'position:absolute;right:0;top:50%;transform:translateY(-50%)',
+            'click': ui.createHandlerFn(this, openSettingsModal)
+        }, '⚙️ Settings');
+
+        refreshNow();
+
+        return E('div', { 'class': 'cbi-map' }, [
+            E('div', { 'style': 'position:relative;padding:12px 0 20px;text-align:center' }, [
+                toggleBtn,
+                refreshBtn,
+                settingsBtn,
+                E('h2', { 'style': 'margin:0;letter-spacing:0.03em;background:linear-gradient(90deg,#5b8def,#8f6ae8);-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block' }, 'JODU51641/JODU51642 Status Dashboard'),
+                E('div', { 'style': 'font-size:0.72em;letter-spacing:0.18em;text-transform:uppercase;color:#777;margin-top:4px' }, '5G ODU Real-Time Monitoring')
+            ]),
+            container
+        ]);
+    },
+
+    handleSaveApply: null,
+    handleSave: null,
+    handleReset: null
 });
