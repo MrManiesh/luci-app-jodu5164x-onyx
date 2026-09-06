@@ -20,6 +20,7 @@
 # Telemetry Collected:
 #   - 5G NR Serving Cell & Neighbouring Sector Cell Scan (AT+QENG, AT+BNRCELLH)
 #   - 5G NR Cell Lock Configuration & State (cricli get_nr5g_cell_config)
+#   - 5G NR Cell Location, TAC & Global Cell ID (cricli cell_location)
 #   - Internal Thermal Sensor Zones (/sys/class/thermal/thermal_zone*)
 #   - Dual CPU Stat Samples (/proc/stat ~1s apart for delta state calculations)
 #   - Memory Breakdown (Total, Free, Available, Buffers, Cached, Swap)
@@ -89,7 +90,12 @@ fetch_once() {
             printf 'cricli get_nr5g_cell_config\r\n'
             printf 'echo LOCKCFG_END\r\n'
 
-            # 3. Multi-Zone Thermal Telemetry
+            # 3. Cell Location & Tower Identifiers (TAC & Global Cell ID)
+            printf 'echo LOC_BEGIN\r\n'
+            printf 'cricli cell_location\r\n'
+            printf 'echo LOC_END\r\n'
+
+            # 4. Multi-Zone Thermal Telemetry
             printf 'for z in /sys/class/thermal/thermal_zone*; do echo TZ:$(basename $z):$(cat $z/type 2>/dev/null):$(cat $z/temp 2>/dev/null); done\r\n'
 
             # 4. CPU Delta State Sampling (2 samples ~1s apart)

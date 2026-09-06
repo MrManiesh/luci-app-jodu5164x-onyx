@@ -385,6 +385,37 @@ extract_lock_status() {
     printf '%s' "$status"
 }
 
+# Extracts TAC and Global Cell ID from cricli cell_location output
+# Returns: "<tac>|<global_cell_id>"
+extract_cell_location() {
+    raw="$1"
+    printf '%s\n' "$raw" | awk '
+        /---------- NR5G Info ----------/ { section="nr5g"; next }
+        /---------- LTE Info ----------/ { section="lte"; next }
+        /^[[:space:]]*tac:[[:space:]]*/ {
+            sub(/^[[:space:]]*tac:[[:space:]]*/, "")
+            sub(/\r$/, "")
+            val = $0
+            if (section == "nr5g") nr_tac = val
+            else if (section == "lte") lte_tac = val
+        }
+        /^[[:space:]]*global cell id:[[:space:]]*/ {
+            sub(/^[[:space:]]*global cell id:[[:space:]]*/, "")
+            sub(/\r$/, "")
+            val = $0
+            if (section == "nr5g") nr_cid = val
+            else if (section == "lte") lte_cid = val
+        }
+        END {
+            tac = (nr_tac != "" && nr_tac != "0") ? nr_tac : lte_tac
+            cid = (nr_cid != "" && nr_cid != "0") ? nr_cid : lte_cid
+            if (tac == "") tac = "--"
+            if (cid == "") cid = "--"
+            printf "%s|%s", tac, cid
+        }
+    '
+}
+
 # -----------------------------------------------------------------------------
 # 6. Step 1: WebUI Session Verification & Data Retrieval
 # -----------------------------------------------------------------------------
@@ -429,6 +460,20 @@ NEARBY_CELLS_JSON=$(build_nearby_cells_json "$NEARBY_RAW")
 LOCKCFG_RAW=$(extract_block_lines "$SYS_RAW" "LOCKCFG")
 CELL_LOCK_STATUS=$(extract_lock_status "$LOCKCFG_RAW")
 CELL_LOCK_STATUS_ESC=$(json_escape "$CELL_LOCK_STATUS")
+
+# Cell Location & Tower Identifiers (cricli cell_location)
+LOC_RAW=$(extract_block_lines "$SYS_RAW" "LOC")
+CELL_LOC=$(extract_cell_location "$LOC_RAW")
+TAC=$(printf '%s' "$CELL_LOC" | cut -d'|' -f1)
+GLOBAL_CELL_ID=$(printf '%s' "$CELL_LOC" | cut -d'|' -f2)
+[ -z "$TAC" ] && TAC="--"
+[ -z "$GLOBAL_CELL_ID" ] && GLOBAL_CELL_ID="--"
+TAC_ESC=$(json_escape "$TAC")
+GLOBAL_CELL_ID_ESC=$(json_escape "$GLOBAL_CELL_ID")
+
+# Tower Distance & Timing Advance (from atcli 'AT+BNRCELLH=?')
+TIMING_ADVANCE=$(printf '%s\n' "$NEARBY_RAW" | sed -n 's/^[[:space:]]*TIMING ADVANCE:[[:space:]]*//p' | head -1 | tr -d '\r')
+[ -z "$TIMING_ADVANCE" ] && TIMING_ADVANCE="--"
 
 # CPU State Delta Breakdown
 S1=$(extract_stat_block "$SYS_RAW" "STAT1")
@@ -569,5 +614,5 @@ PACKET_LOSS=$(get_val "packet_loss" "$DEVICE_DATA")
 # 9. Step 3: Emit Flat JSON Payload
 # -----------------------------------------------------------------------------
 cat <<EOF
-{"server_link":"ONLINE","sim_status":"${SIM_STATUS}","operating_mode":"${OPERATING_MODE}","band":"${BAND}","bandwidth":"${BANDWIDTH}","arfcn":"${ARFCN}","pci":"${PCI}","plmn":"${PLMN}","rrc_state":"${RRC_STATE}","rsrp":"${RSRP}","rsrq":"${RSRQ}","sinr":"${SINR}","bler":"${BLER}","mimo":"${MIMO}","modulation":"${MODULATION}","cqi":"${CQI}","SCC_BAND":"${SCC_BAND}","SCC_BW":"${SCC_BW}","SCC_ARFCN":"${SCC_ARFCN}","SCC_PCI":"${SCC_PCI}","SCC_BLER":"${SCC_BLER}","SCC_MIMO":"${SCC_MIMO}","SCC_MODULATION":"${SCC_MODULATION}","SCC_CQI":"${SCC_CQI}","SCC_RSRP":"${SCC_RSRP}","SCC_RSRQ":"${SCC_RSRQ}","SCC_SINR":"${SCC_SINR}","eth_link_status":"${ETH_LINK_STATUS}","eth_speed":"${ETH_SPEED}","eth_duplex":"${ETH_DUPLEX}","eth_uptime":"${ETH_UPTIME}","data_sent":"${DATA_SENT}","data_received":"${DATA_RECEIVED}","packet_loss":"${PACKET_LOSS}","thermal_zones":${THERMAL_JSON},"odu_cpu_pct":"${CPU_PCT}","odu_cpu_user":"${PCT_USER}","odu_cpu_nice":"${PCT_NICE}","odu_cpu_system":"${PCT_SYSTEM}","odu_cpu_idle":"${PCT_IDLE}","odu_cpu_iowait":"${PCT_IOWAIT}","odu_cpu_irq":"${PCT_IRQ}","odu_cpu_softirq":"${PCT_SOFTIRQ}","odu_cpu_steal":"${PCT_STEAL}","odu_cpu_cores":"${CORES}","odu_cpu_model":"${CPU_MODEL_ESC}","odu_load1":"${LOAD1}","odu_load5":"${LOAD5}","odu_load15":"${LOAD15}","odu_tasks_running":"${TASKS_RUNNING}","odu_tasks_total":"${TASKS_TOTAL}","odu_uptime_sec":"${UPTIME_SEC}","odu_ctxt_rate":"${CTXT_RATE}","odu_intr_rate":"${INTR_RATE}","odu_conntrack_count":"${CONNTRACK_COUNT}","odu_conntrack_max":"${CONNTRACK_MAX}","odu_mem_total_kb":"${MEM_TOTAL_KB}","odu_mem_used_kb":"${MEM_USED_KB}","odu_mem_pct":"${MEM_PCT}","odu_mem_free_kb":"${MEM_FREE_KB}","odu_mem_cached_kb":"${MEM_CACHED_KB}","odu_mem_buffers_kb":"${MEM_BUFFERS_KB}","odu_mem_swap_total_kb":"${MEM_SWAP_TOTAL_KB}","odu_mem_swap_used_kb":"${MEM_SWAP_USED_KB}","nearby_cells":${NEARBY_CELLS_JSON},"cell_lock_status":"${CELL_LOCK_STATUS_ESC}","webui_status":"${WEBUI_STATUS}","telnet_status":"${TELNET_STATUS}"}
+{"server_link":"ONLINE","sim_status":"${SIM_STATUS}","operating_mode":"${OPERATING_MODE}","band":"${BAND}","bandwidth":"${BANDWIDTH}","arfcn":"${ARFCN}","pci":"${PCI}","plmn":"${PLMN}","rrc_state":"${RRC_STATE}","rsrp":"${RSRP}","rsrq":"${RSRQ}","sinr":"${SINR}","bler":"${BLER}","mimo":"${MIMO}","modulation":"${MODULATION}","cqi":"${CQI}","SCC_BAND":"${SCC_BAND}","SCC_BW":"${SCC_BW}","SCC_ARFCN":"${SCC_ARFCN}","SCC_PCI":"${SCC_PCI}","SCC_BLER":"${SCC_BLER}","SCC_MIMO":"${SCC_MIMO}","SCC_MODULATION":"${SCC_MODULATION}","SCC_CQI":"${SCC_CQI}","SCC_RSRP":"${SCC_RSRP}","SCC_RSRQ":"${SCC_RSRQ}","SCC_SINR":"${SCC_SINR}","eth_link_status":"${ETH_LINK_STATUS}","eth_speed":"${ETH_SPEED}","eth_duplex":"${ETH_DUPLEX}","eth_uptime":"${ETH_UPTIME}","data_sent":"${DATA_SENT}","data_received":"${DATA_RECEIVED}","packet_loss":"${PACKET_LOSS}","thermal_zones":${THERMAL_JSON},"odu_cpu_pct":"${CPU_PCT}","odu_cpu_user":"${PCT_USER}","odu_cpu_nice":"${PCT_NICE}","odu_cpu_system":"${PCT_SYSTEM}","odu_cpu_idle":"${PCT_IDLE}","odu_cpu_iowait":"${PCT_IOWAIT}","odu_cpu_irq":"${PCT_IRQ}","odu_cpu_softirq":"${PCT_SOFTIRQ}","odu_cpu_steal":"${PCT_STEAL}","odu_cpu_cores":"${CORES}","odu_cpu_model":"${CPU_MODEL_ESC}","odu_load1":"${LOAD1}","odu_load5":"${LOAD5}","odu_load15":"${LOAD15}","odu_tasks_running":"${TASKS_RUNNING}","odu_tasks_total":"${TASKS_TOTAL}","odu_uptime_sec":"${UPTIME_SEC}","odu_ctxt_rate":"${CTXT_RATE}","odu_intr_rate":"${INTR_RATE}","odu_conntrack_count":"${CONNTRACK_COUNT}","odu_conntrack_max":"${CONNTRACK_MAX}","odu_mem_total_kb":"${MEM_TOTAL_KB}","odu_mem_used_kb":"${MEM_USED_KB}","odu_mem_pct":"${MEM_PCT}","odu_mem_free_kb":"${MEM_FREE_KB}","odu_mem_cached_kb":"${MEM_CACHED_KB}","odu_mem_buffers_kb":"${MEM_BUFFERS_KB}","odu_mem_swap_total_kb":"${MEM_SWAP_TOTAL_KB}","odu_mem_swap_used_kb":"${MEM_SWAP_USED_KB}","nearby_cells":${NEARBY_CELLS_JSON},"cell_lock_status":"${CELL_LOCK_STATUS_ESC}","tac":"${TAC_ESC}","global_cell_id":"${GLOBAL_CELL_ID_ESC}","timing_advance":"${TIMING_ADVANCE}","webui_status":"${WEBUI_STATUS}","telnet_status":"${TELNET_STATUS}"}
 EOF

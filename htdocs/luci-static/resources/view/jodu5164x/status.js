@@ -177,6 +177,52 @@ function isEmptyValue(v) {
     return v == null || v === '' || v === 'NA' || v === '--';
 }
 
+function parseBwMHz(bw) {
+    if (!bw || bw === '--' || bw === 'NA') return 0;
+    var m = String(bw).match(/(\d+)/);
+    return m ? parseInt(m[1], 10) : 0;
+}
+
+function formatTowerDistance(ta) {
+    if (ta == null || ta === '' || ta === '--' || ta === 'NA') return '--';
+    var val = parseInt(ta, 10);
+    if (isNaN(val) || val < 0) return '--';
+    // 3GPP 5G NR / LTE standard: ~78.12 meters per TA unit (round-trip ~0.52 us)
+    var meters = Math.round(val * 78.12);
+    if (val === 0) {
+        return 'TA: 0 (~0 m to gNodeB)';
+    } else if (meters >= 1000) {
+        var km = (meters / 1000).toFixed(2);
+        return 'TA: ' + val + ' (~' + meters + ' m / ' + km + ' km to gNodeB)';
+    } else {
+        return 'TA: ' + val + ' (~' + meters + ' m to gNodeB)';
+    }
+}
+
+function formatTac(tac) {
+    if (!tac || tac === '--' || tac === 'NA' || tac === '0') return '--';
+    var hex, dec;
+    if (String(tac).toLowerCase().indexOf('0x') === 0) {
+        dec = parseInt(tac, 16);
+        hex = '0x' + dec.toString(16).toUpperCase();
+    } else {
+        dec = parseInt(tac, 10);
+        if (!isNaN(dec)) hex = '0x' + dec.toString(16).toUpperCase();
+    }
+    if (isNaN(dec)) return String(tac);
+    return hex + ' (' + dec + ')';
+}
+
+function formatCellId(cid) {
+    if (!cid || cid === '--' || cid === 'NA' || cid === '0') return '--';
+    var dec = parseInt(cid, 10);
+    if (!isNaN(dec)) {
+        var hex = '0x' + dec.toString(16).toUpperCase();
+        return dec + ' (' + hex + ')';
+    }
+    return String(cid);
+}
+
 function secondaryCellPanel(merged) {
     var band = merged['scc_band'];
     var pci = merged['scc_pci'];
@@ -189,12 +235,20 @@ function secondaryCellPanel(merged) {
             E('p', { 'style': 'margin:0;color:#64748b;font-size:0.85em;' }, 'Secondary carrier activates dynamically during high throughput demand.')
         ]), '⚡');
     }
-    return panel('Cellular Parameters (Secondary Cell)', cellTable('scc_', merged), '⚡');
+    var pBw = parseBwMHz(merged['bandwidth']);
+    var sBw = parseBwMHz(merged['scc_bw']);
+    var totalBw = (pBw > 0 ? pBw : 0) + (sBw > 0 ? sBw : 0);
+    var caBadge = totalBw > 0 ? E('span', {
+        'class': 'jodu-badge',
+        'style': 'background:rgba(168,85,247,0.2);color:#c084fc;border:1px solid rgba(168,85,247,0.4);font-weight:700;'
+    }, '⚡ Total: ' + totalBw + ' MHz DL') : null;
+    return panel('Cellular Parameters (Secondary Cell)', cellTable('scc_', merged), '⚡', caBadge);
 }
 
 function cellTable(prefix, d) {
+    var isPrimary = (prefix === '');
     var band = d[prefix + 'band'];
-    var bw = d[prefix + 'bandwidth'] || d[prefix + 'bw'];
+    var rawBw = d[prefix + 'bandwidth'] || d[prefix + 'bw'];
     var arfcn = d[prefix + 'arfcn'];
     var pci = d[prefix + 'pci'];
     var bler = d[prefix + 'bler'];
@@ -203,27 +257,64 @@ function cellTable(prefix, d) {
     var rsrp = d[prefix + 'rsrp'];
     var rsrq = d[prefix + 'rsrq'];
     var sinr = d[prefix + 'sinr'];
+
+    var sccBand = d['scc_band'];
+    var sccPci = d['scc_pci'];
+    var sccRsrp = d['scc_rsrp'];
+    var caActive = !isEmptyValue(sccBand) || !isEmptyValue(sccPci) || !isEmptyValue(sccRsrp);
+    var pBw = parseBwMHz(d['bandwidth']);
+    var sBw = parseBwMHz(d['scc_bw']);
+    var totalBw = (pBw > 0 ? pBw : 0) + (sBw > 0 ? sBw : 0);
+
+    var bwDisplay = rawBw;
+    if (isPrimary) {
+        if (caActive && totalBw > pBw) {
+            bwDisplay = (rawBw ? rawBw : pBw + ' MHz') + ' (PCC) · Total: ' + totalBw + ' MHz DL (2x CA)';
+        }
+    } else {
+        if (rawBw) {
+            bwDisplay = rawBw + ' (SCC)';
+        }
+    }
+
     var rows = [
         paramRow('Band', band),
-        paramRow('Bandwidth', bw),
+        paramRow('Bandwidth', bwDisplay, isPrimary && caActive && totalBw > pBw ? COLOR_PURPLE : null),
         paramRow('NR-ARFCN', arfcn),
-        paramRow('Physical Cell ID', pci),
+        paramRow('Physical Cell ID', pci)
+    ];
+
+    if (isPrimary) {
+        var cidFormatted = formatCellId(d['global_cell_id']);
+        var tacFormatted = formatTac(d['tac']);
+        var distStr = formatTowerDistance(d['timing_advance']);
+        rows.push(paramRow('Global Cell ID', cidFormatted));
+        rows.push(paramRow('Tracking Area Code (TAC)', tacFormatted));
+        rows.push(paramRow('Tower Distance (TA)', distStr, (distStr && distStr !== '--') ? COLOR_GOOD : null));
+    } else if (caActive && totalBw > 0) {
+        rows.push(paramRow('Aggregate Bandwidth', 'Total: ' + totalBw + ' MHz DL (' + (pBw > 0 ? pBw + ' MHz PCC + ' : '') + sBw + ' MHz SCC)', COLOR_PURPLE));
+    }
+
+    rows.push(
         paramRow('BLER (downlink)', (bler != null && bler !== 'NA' && bler !== '--') ? bler + ' %' : bler, qualityColor('bler', bler)),
         paramRow('Modulation', modulation),
         paramRow('MIMO', mimo),
         paramRow('SS-RSRP', (rsrp != null && rsrp !== 'NA' && rsrp !== '--') ? rsrp + ' dBm' : rsrp, qualityColor('rsrp', rsrp)),
         paramRow('SS-RSRQ', (rsrq != null && rsrq !== 'NA' && rsrq !== '--') ? rsrq + ' dB' : rsrq, qualityColor('rsrq', rsrq)),
         paramRow('SS-SINR', (sinr != null && sinr !== 'NA' && sinr !== '--') ? sinr + ' dB' : sinr, qualityColor('sinr', sinr))
-    ];
+    );
+
     return E('table', { 'class': 'jodu-table' }, rows);
 }
 
-function panel(title, contentNode, icon) {
+function panel(title, contentNode, icon, extraHdr) {
+    var hdrChildren = [
+        icon ? E('span', { 'class': 'jodu-card-icon' }, icon) : '',
+        E('span', { 'class': 'jodu-card-title' }, title)
+    ];
+    if (extraHdr) hdrChildren.push(extraHdr);
     return E('div', { 'class': 'jodu-card' }, [
-        E('div', { 'class': 'jodu-card-hdr' }, [
-            icon ? E('span', { 'class': 'jodu-card-icon' }, icon) : '',
-            E('span', { 'class': 'jodu-card-title' }, title)
-        ]),
+        E('div', { 'class': 'jodu-card-hdr', 'style': 'display:flex;justify-content:space-between;align-items:center;' }, hdrChildren),
         E('div', { 'class': 'jodu-card-body' }, [contentNode])
     ]);
 }
@@ -1280,7 +1371,8 @@ return view.extend({
                             ' · PCI ',
                             E('span', { 'id': 'jodu-aim-serving-pci', 'style': 'color:#facc15;' }, '--'),
                             ' · ARFCN ',
-                            E('span', { 'id': 'jodu-aim-serving-arfcn', 'style': 'color:#a78bfa;' }, '--')
+                            E('span', { 'id': 'jodu-aim-serving-arfcn', 'style': 'color:#a78bfa;' }, '--'),
+                            E('span', { 'id': 'jodu-aim-serving-dist', 'style': 'color:#34d399;margin-left:6px;font-size:0.9em;' }, '')
                         ])
                     ]),
                     E('div', { 'id': 'jodu-aim-ca-badge', 'style': 'font-size:0.82em;color:#94a3b8;' }, 'Carrier Aggregation: Standalone')
@@ -1455,6 +1547,12 @@ return view.extend({
             if (bandEl) bandEl.textContent = band;
             if (netEl) netEl.textContent = plmn;
 
+            var distEl = document.getElementById('jodu-aim-serving-dist');
+            if (distEl) {
+                var distStr = formatTowerDistance(data.timing_advance);
+                distEl.textContent = (distStr && distStr !== '--') ? '· ' + distStr : '';
+            }
+
             if (pci !== '--') {
                 if (aimingSession.initialPci == null) {
                     aimingSession.initialPci = pci;
@@ -1466,10 +1564,15 @@ return view.extend({
             }
 
             if (caBadge) {
-                if (data.SCC_BAND || data.scc_band) {
+                var hasCa = !isEmptyValue(data.SCC_BAND) || !isEmptyValue(data.scc_band);
+                if (hasCa) {
                     var sccB = data.SCC_BAND || data.scc_band;
                     var sccR = data.SCC_RSRP || data.scc_rsrp || '--';
-                    caBadge.innerHTML = 'Carrier Aggregation: <span style="color:#c084fc;font-weight:700;">Active</span> (SCC B' + sccB + ' · RSRP ' + sccR + ' dBm)';
+                    var pBw = parseBwMHz(data.bandwidth);
+                    var sBw = parseBwMHz(data.SCC_BW || data.scc_bw);
+                    var totBw = (pBw > 0 ? pBw : 0) + (sBw > 0 ? sBw : 0);
+                    var bwText = totBw > 0 ? ' · Total: ' + totBw + ' MHz DL' : '';
+                    caBadge.innerHTML = 'Carrier Aggregation: <span style="color:#c084fc;font-weight:700;">Active' + bwText + '</span> (SCC B' + sccB + ' · RSRP ' + sccR + ' dBm)';
                 } else {
                     caBadge.textContent = 'Carrier Aggregation: Single Carrier';
                 }
