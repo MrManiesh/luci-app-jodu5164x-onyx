@@ -150,7 +150,7 @@ function summaryRow(data, online) {
 
     return E('div', { 'class': 'jodu-sum-row' }, [
         noSim ? summaryCard('NETWORK', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM', '📱') :
-                summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, '📡'),
+            summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, '📡'),
         summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', qualityColor('rsrp', data.rsrp), sigSub, '📶'),
         summaryCard('RADIO PURITY', sinrVal, qualityColor('sinr', data.sinr), puritySub, '⚡'),
         summaryCard('ETHERNET LINK', formatSpeed(data.eth_speed), speedCol, ethSub, '🔌')
@@ -814,12 +814,15 @@ function thermalSection(data) {
             var label = friendlySensorName(z.type, z.zone);
             return paramRow(label, z.temp_c + ' °C', tempColor(z.temp_c));
         });
-        return E('table', { 'class': 'jodu-table' }, rows);
+        return E('div', { 'class': 'jodu-thermal-col' }, [
+            E('table', { 'class': 'jodu-table' }, rows)
+        ]);
     }
-    var table = E('div', { 'id': 'jodu5164x-thermal-scroll', 'style': 'display:flex;gap:20px;flex-wrap:wrap;' }, [
-        E('div', { 'style': 'flex:1;min-width:220px' }, buildColumn(colA)),
-        E('div', { 'style': 'flex:1;min-width:220px' }, buildColumn(colB))
-    ]);
+    var colElements = [buildColumn(colA)];
+    if (colB.length > 0) {
+        colElements.push(buildColumn(colB));
+    }
+    var table = E('div', { 'id': 'jodu5164x-thermal-scroll', 'class': 'jodu-thermal-grid' }, colElements);
     var maxLabel = friendlySensorName(maxZone.type, maxZone.zone);
     var maxColor = tempColor(maxZone.temp_c);
     var header = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:6px 10px;background:rgba(255,255,255,0.02);border-radius:8px;' }, [
@@ -900,14 +903,17 @@ function renderDashboard(data) {
         nearbyCellsSection(data)
     ]);
 
-    var telemetryGrid = E('div', { 'class': 'jodu-grid-3col' }, [
+    var gaugePanels = E('div', { 'class': 'jodu-grid-2col' }, [
         cpuGaugePanel(data),
-        memGaugePanel(data),
-        cpuDetailPanel(data)
+        memGaugePanel(data)
     ]);
 
-    var bottomPanels = E('div', { 'class': 'jodu-grid-2col' }, [
-        dataUsageSection(data),
+    var detailPanels = E('div', { 'class': 'jodu-grid-2col' }, [
+        cpuDetailPanel(data),
+        dataUsageSection(data)
+    ]);
+
+    var thermalPanel = E('div', { 'style': 'margin-bottom:16px;' }, [
         thermalSection(data)
     ]);
 
@@ -920,15 +926,16 @@ function renderDashboard(data) {
         summaryRow(data, true),
         cellPanels,
         managementColumn,
-        telemetryGrid,
-        bottomPanels
+        gaugePanels,
+        detailPanels,
+        thermalPanel
     ]);
 }
 
 function loadingPlaceholder() {
     return E('div', { 'class': 'jodu-loading-box' }, [
         E('div', { 'class': 'jodu-spinner' }),
-        E('h4', { 'style': 'margin:14px 0 4px;color:#f8fafc;font-weight:600;' }, 'Connecting to Sercomm 5G ODU...'),
+        E('h4', { 'style': 'margin:14px 0 4px;color:#f8fafc;font-weight:600;' }, 'Connecting to ODU...'),
         E('p', { 'style': 'margin:0;color:#64748b;font-size:0.85em;' }, 'Retrieving real-time radio metrics and hardware telemetry')
     ]);
 }
@@ -1146,6 +1153,9 @@ return view.extend({
             '.jodu-sum-lbl { font-size:0.7em;letter-spacing:0.1em;text-transform:uppercase;color:#64748b;font-weight:700; }',
             '.jodu-grid-2col { display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:16px;margin-bottom:16px; }',
             '.jodu-grid-3col { display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:16px;margin-bottom:16px; }',
+            '.jodu-thermal-grid { display:grid;grid-template-columns:repeat(2, 1fr);gap:18px; }',
+            '@media (max-width:768px) { .jodu-thermal-grid { grid-template-columns:1fr;gap:12px; } }',
+            '.jodu-thermal-col { background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 14px; }',
             '.jodu-card { background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.12);transition:transform 0.2s ease; }',
             '.jodu-card:hover { border-color:rgba(255,255,255,0.14); }',
             '.jodu-card-hdr { display:flex;align-items:center;gap:8px;padding:12px 16px;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.06); }',
@@ -1190,8 +1200,8 @@ return view.extend({
 
         var topBar = E('div', { 'class': 'jodu-top-bar' }, [
             E('div', { 'class': 'jodu-title-block' }, [
-                E('h2', {}, 'JODU51641 / JODU51642 Status Dashboard'),
-                E('div', { 'class': 'jodu-subtitle' }, 'Real-Time Sercomm 5G ODU Monitoring & Telemetry')
+                E('h2', {}, 'JODU5164x Status Dashboard'),
+                E('div', { 'class': 'jodu-subtitle' }, 'Real-Time ODU Monitoring & Telemetry')
             ]),
             E('div', { 'class': 'jodu-actions' }, [
                 toggleBtn,
