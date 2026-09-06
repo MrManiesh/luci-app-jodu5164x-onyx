@@ -264,9 +264,15 @@ build_nearby_cells_json() {
             arfcn=$2; pci=$3; rsrp=$4; rsrq=$5
             sub(/\r$/, "", rsrq)
             if (arfcn == "0" && pci == "0") next
-            if (!first) printf ","
-            printf "{\"pci\":\"%s\",\"arfcn\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\"}", pci, arfcn, rsrp, rsrq
-            first = 0
+            rsrp_val = sprintf("%.0f", rsrp + 0)
+            rsrq_val = sprintf("%.0f", rsrq + 0)
+            key = pci "_" arfcn
+            if (!(key in seen)) {
+                seen[key] = 1
+                if (!first) printf ","
+                printf "{\"pci\":\"%s\",\"arfcn\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\"}", pci, arfcn, rsrp_val, rsrq_val
+                first = 0
+            }
             next
         }
         {
@@ -278,9 +284,15 @@ build_nearby_cells_json() {
                     arfcn = f[i+1]; pci = f[i+2]; rsrp = f[i+3]; rsrq = f[i+4]
                     sub(/\r$/, "", rsrq)
                     if (arfcn == "0" && pci == "0") next
-                    if (!first) printf ","
-                    printf "{\"pci\":\"%s\",\"arfcn\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\"}", pci, arfcn, rsrp, rsrq
-                    first = 0
+                    rsrp_val = sprintf("%.0f", rsrp + 0)
+                    rsrq_val = sprintf("%.0f", rsrq + 0)
+                    key = pci "_" arfcn
+                    if (!(key in seen)) {
+                        seen[key] = 1
+                        if (!first) printf ","
+                        printf "{\"pci\":\"%s\",\"arfcn\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\"}", pci, arfcn, rsrp_val, rsrq_val
+                        first = 0
+                    }
                     next
                 }
             }
