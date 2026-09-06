@@ -6,7 +6,7 @@ LUCI_PKGARCH:=all
 
 PKG_NAME:=luci-app-jodu5164x-status
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 PKG_LICENSE:=GPL-3.0
 PKG_MAINTAINER:=Manish Matwa Choudhary
 
@@ -45,31 +45,37 @@ else
 	cp -pR ./root/* $(1)/
 	$(INSTALL_DIR) $(1)/www
 	cp -pR ./htdocs/* $(1)/www/
-	[ -d $(1)/usr/libexec ] && chmod 0755 $(1)/usr/libexec/* || true
-	[ -d $(1)/etc/init.d ] && chmod 0755 $(1)/etc/init.d/* || true
+	chmod 0755 $(1)/usr/libexec/* 2>/dev/null || true
+	chmod 0755 $(1)/etc/init.d/* 2>/dev/null || true
   endef
-
-  define Package/$(PKG_NAME)/postinst
-#!/bin/sh
-[ -n "$${IPKG_INSTROOT}" ] || {
-	rm -rf /tmp/luci-indexcache /tmp/luci-modulecache /tmp/luci-sessions/*
-	/etc/init.d/rpcd reload 2>/dev/null
-	/etc/init.d/jodu5164x-updater enable 2>/dev/null
-	/etc/init.d/jodu5164x-updater restart 2>/dev/null
-}
-exit 0
-  endef
-
-  define Package/$(PKG_NAME)/prerm
-#!/bin/sh
-[ -n "$${IPKG_INSTROOT}" ] || {
-	/etc/init.d/jodu5164x-updater stop 2>/dev/null
-	/etc/init.d/jodu5164x-updater disable 2>/dev/null
-}
-exit 0
-  endef
-
-  $(eval $(call BuildPackage,$(PKG_NAME)))
 endif
 
-# call BuildPackage - OpenWrt buildroot signature
+define Package/$(PKG_NAME)/postinst
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] || {
+	chmod 0755 /etc/init.d/jodu5164x* 2>/dev/null || true
+	chmod 0755 /usr/libexec/jodu5164x* 2>/dev/null || true
+	rm -rf /tmp/luci-indexcache /tmp/luci-modulecache /tmp/luci-sessions/*
+	/etc/init.d/rpcd reload 2>/dev/null
+	if [ -f /etc/init.d/jodu5164x-updater ]; then
+		/bin/sh /etc/init.d/jodu5164x-updater enable 2>/dev/null
+		/bin/sh /etc/init.d/jodu5164x-updater restart 2>/dev/null
+	fi
+}
+exit 0
+endef
+
+define Package/$(PKG_NAME)/prerm
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] || {
+	if [ -f /etc/init.d/jodu5164x-updater ]; then
+		/bin/sh /etc/init.d/jodu5164x-updater stop 2>/dev/null
+		/bin/sh /etc/init.d/jodu5164x-updater disable 2>/dev/null
+	fi
+}
+exit 0
+endef
+
+ifeq ($(wildcard $(TOPDIR)/feeds/luci/luci.mk),)
+  $(eval $(call BuildPackage,$(PKG_NAME)))
+endif
