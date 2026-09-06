@@ -1,60 +1,101 @@
 #!/bin/sh
+# =============================================================================
 # jodu5164x-data.sh
-# Collector for JODU51641/JODU51642 (Jio WebUI/API based ODU).
-# Config (host/username/password/telnet password) comes from UCI
-# (/etc/config/jodu5164x) so it can be edited from the LuCI Settings page.
+# Main Status & Telemetry Collector for Sercomm JODU5164x 5G ODUs
 #
-# Logs in via HMAC-SHA256 challenge (session cookie cached & reused across
-# polls; auto re-login if the session has expired), fetches primary +
-# secondary cell JSON + LAN/eth JSON, then reads background telnet cache
-# for thermal zones, CPU/RAM telemetry, nearby cells, and lock status,
-# emitting one flat status JSON for the LuCI dashboard.
+# Architecture & Design:
+#   1. WebUI HTTP API Collection:
+#      - Authenticates via HMAC-SHA256 challenge-response protocol.
+#      - Reuses session cookies across polling cycles to avoid re-login overhead.
+#      - Automatically re-authenticates if a session cookie expires.
+#      - Fetches Primary Cell, Secondary Cell (Carrier Aggregation), LAN/Ethernet,
+#        and Device Data counters.
+#
+#   2. Asynchronous Telnet Telemetry Integration:
+#      - Reads pre-cached system telemetry from /tmp/jodu5164x_sys_cache.raw
+#        written by the background updater daemon (jodu5164x-telnet-updater.sh).
+#      - Never blocks on Telnet I/O during HTTP requests, ensuring sub-50ms execution.
+#
+#   3. Flat Unified JSON Payload:
+#      - Aggregates all cellular, ethernet, hardware, CPU, memory, thermal,
+#        neighbouring cells, and tower lock parameters into a single JSON object
+#        consumed directly by the LuCI web interface.
+#
+# Configuration:
+#   Options are managed in UCI (/etc/config/jodu5164x):
+#     - host            : ODU IP address (default: 192.168.225.1)
+#     - username        : WebUI username (default: Admin)
+#     - password        : WebUI login password
+#     - telnet_port     : Telnet port (default: 23)
+#     - telnet_password : Optional Telnet login password
+#     - enabled         : 1 = Active Monitoring, 0 = Paused
+#
+# Author: Manish Matwa Choudhary
+# License: GPL-3.0
+# =============================================================================
 
+# -----------------------------------------------------------------------------
+# 1. UCI Configuration & Initialization
+# -----------------------------------------------------------------------------
 UCI_PKG="jodu5164x"
-ODU_HOST=$(uci -q get ${UCI_PKG}.main.host); [ -z "$ODU_HOST" ] && ODU_HOST="192.168.225.1"
-ODU_USER=$(uci -q get ${UCI_PKG}.main.username); [ -z "$ODU_USER" ] && ODU_USER="Admin"
-ODU_PASS=$(uci -q get ${UCI_PKG}.main.password)
-TELNET_PORT=$(uci -q get ${UCI_PKG}.main.telnet_port); [ -z "$TELNET_PORT" ] && TELNET_PORT="23"
-TELNET_PASS=$(uci -q get ${UCI_PKG}.main.telnet_password)
-ENABLED=$(uci -q get ${UCI_PKG}.main.enabled); [ -z "$ENABLED" ] && ENABLED="1"
 
-# Monitoring paused: don't touch the ODU at all (no login, no session held)
-# so its own WebUI login isn't blocked by us.
+ODU_HOST=$(uci -q get ${UCI_PKG}.main.host)
+[ -z "$ODU_HOST" ] && ODU_HOST="192.168.225.1"
+
+ODU_USER=$(uci -q get ${UCI_PKG}.main.username)
+[ -z "$ODU_USER" ] && ODU_USER="Admin"
+
+ODU_PASS=$(uci -q get ${UCI_PKG}.main.password)
+
+TELNET_PORT=$(uci -q get ${UCI_PKG}.main.telnet_port)
+[ -z "$TELNET_PORT" ] && TELNET_PORT="23"
+
+TELNET_PASS=$(uci -q get ${UCI_PKG}.main.telnet_password)
+
+ENABLED=$(uci -q get ${UCI_PKG}.main.enabled)
+[ -z "$ENABLED" ] && ENABLED="1"
+
+# When monitoring is paused: exit immediately without making any network requests
+# so the ODU's single-login session is not tied up.
 if [ "$ENABLED" = "0" ]; then
     echo '{"server_link":"DISABLED"}'
     exit 0
 fi
 
+# Secret encryption key required by Sercomm WebUI challenge protocol
 ENC_KEY='$1$SERCOMM$'
 COOKIE_JAR="/tmp/jodu5164x_cookie.txt"
 TIMEOUT=5
 
-# ---- helpers ----
+# -----------------------------------------------------------------------------
+# 2. String Manipulation & Parsing Helpers
+# -----------------------------------------------------------------------------
 
-# extract a "key":"value" string or numeric field from a flat JSON blob
+# Extracts a "key":"value" string or numeric field from a flat JSON blob
+# Arguments: $1 = key name, $2 = json text
 get_val() {
-    # $1 = key, $2 = json text
     printf '%s' "$2" | sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"\?\([^",}]*\)"\?.*/\1/p'
 }
 
-# strip trailing unit text ("dBm"/"dB") leaving just the number
+# Strips trailing unit text ("dBm" or "dB"), returning pure numeric value
+# Arguments: $1 = value with unit (e.g. "-78 dBm")
 strip_unit() {
     printf '%s' "$1" | sed -E 's/[[:space:]]*(dBm|dB)$//'
 }
 
-# JSON-escape a string: backslash and double-quote
+# Escapes backslashes and double quotes for safe embedding in JSON strings
+# Arguments: $1 = raw string
 json_escape() {
     printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 }
 
-WEBUI_STATUS="ok"
-
-# The background daemon (jodu5164x-telnet-updater.sh, a procd service)
-# refreshes these cache files every ~15s. This script only ever READS them
-# - it never telnets itself - so it can never block/time out on that.
+# -----------------------------------------------------------------------------
+# 3. Background Daemon Cache Reader & Status
+# -----------------------------------------------------------------------------
 SYS_CACHE_FILE="/tmp/jodu5164x_sys_cache.raw"
 SYS_TS_FILE="/tmp/jodu5164x_sys_ts"
 SYS_STATUS_FILE="/tmp/jodu5164x_telnet_status"
+WEBUI_STATUS="ok"
 
 TELNET_STATUS=$(cat "$SYS_STATUS_FILE" 2>/dev/null)
 [ -z "$TELNET_STATUS" ] && TELNET_STATUS="ok"
@@ -63,8 +104,7 @@ read_sys_cache() {
     [ -s "$SYS_CACHE_FILE" ] && cat "$SYS_CACHE_FILE"
 }
 
-# Builds the friendly diagnostic message shown on the dashboard when the
-# WebUI login fails, based on WEBUI_STATUS.
+# Constructs friendly diagnostic error messages when WebUI or Telnet fails
 emit_offline_diagnosis() {
     case "$WEBUI_STATUS" in
         no_password)
@@ -96,13 +136,18 @@ emit_offline_diagnosis() {
     echo "{\"server_link\":\"OFFLINE\",\"webui_status\":\"${WEBUI_STATUS}\",\"webui_message\":\"${webui_msg_esc}\",\"telnet_status\":\"${TELNET_STATUS}\",\"telnet_message\":\"${telnet_msg_esc}\"}"
 }
 
-# If password has not been configured in UCI, alert user immediately
+# Alert immediately if password is missing from UCI
 if [ -z "$ODU_PASS" ]; then
     WEBUI_STATUS="no_password"
     emit_offline_diagnosis
     exit 1
 fi
 
+# -----------------------------------------------------------------------------
+# 4. WebUI Authentication & API Client
+# -----------------------------------------------------------------------------
+
+# Performs Sercomm double HMAC-SHA256 login challenge
 do_login() {
     HASH1=$(printf '%s' "$ODU_PASS" | openssl dgst -sha256 -hmac "$ENC_KEY" | sed 's/^.* //')
     HASH2=$(printf '%s' "$HASH1" | openssl dgst -sha256 -hmac "$ENC_KEY" | sed 's/^.* //')
@@ -117,13 +162,13 @@ do_login() {
         --data "LoginName=${ODU_USER}&LoginPWD=${LOGIN_PWD}&remember_pwd=0" \
         "https://${ODU_HOST}/data/login.json?_=$(date +%s%3N)")
 
-    # curl reports http_code "000" when it couldn't connect at all (wrong IP,
-    # ODU offline, wrong port, etc) - distinct from a reachable-but-rejected login.
+    # HTTP 000 indicates connection failure (unreachable IP, host down)
     if [ "$CODE" = "000" ]; then
         WEBUI_STATUS="ip_unreachable"
         return 1
     fi
 
+    # Confirm session cookie was granted
     if [ "$CODE" != "200" ] || ! grep -qi QSESSIONID "$COOKIE_JAR" 2>/dev/null; then
         WEBUI_STATUS="wrong_password"
         return 1
@@ -133,13 +178,18 @@ do_login() {
     return 0
 }
 
+# Fetches JSON endpoints using cached session cookie
+# Arguments: $1 = endpoint filename
 fetch_cell_json() {
-    # $1 = filename (network_status_cell_parameters.json / secondary variant)
     curl -sk --connect-timeout "$TIMEOUT" -b "$COOKIE_JAR" \
         "https://${ODU_HOST}/data/${1}?_=$(date +%s%3N)"
 }
 
-# Extracts one STAT<n>_BEGIN..STAT<n>_END block from the cleaned raw dump,
+# -----------------------------------------------------------------------------
+# 5. Low-Level Telemetry Parsers
+# -----------------------------------------------------------------------------
+
+# Extracts one STAT<n>_BEGIN..STAT<n>_END block from the cache dump,
 # returning "cpuline|ctxt|intr|procs_running".
 extract_stat_block() {
     raw="$1"; marker="$2"
@@ -156,8 +206,8 @@ extract_stat_block() {
         }'
 }
 
-# Computes per-state CPU percentages (user/nice/system/idle/iowait/irq/
-# softirq/steal) from two /proc/stat "cpu" line samples ~1s apart.
+# Computes per-state CPU percentages (user/nice/system/idle/iowait/irq/softirq/steal)
+# from two /proc/stat "cpu" line samples ~1s apart.
 compute_cpu_states() {
     c1="$1"; c2="$2"
     if [ -z "$c1" ] || [ -z "$c2" ]; then
@@ -177,8 +227,8 @@ compute_cpu_states() {
     }'
 }
 
-# Parses "MEM:<Total>:<Free>:<Avail>:<Buffers>:<Cached>:<SwapTotal>:<SwapFree>"
-# (KB) into total/used/pct plus the individual breakdown figures.
+# Parses "MEM:<Total>:<Free>:<Avail>:<Buffers>:<Cached>:<SwapTotal>:<SwapFree>" (KB)
+# into total/used/pct plus the individual breakdown figures.
 compute_mem_stats() {
     raw="$1"
     line=$(printf '%s' "$raw" | sed -n 's/^MEM://p')
@@ -208,7 +258,7 @@ compute_mem_stats() {
     printf ':%s' "$swap_used"
 }
 
-# Parses "TZ:<zone>:<type>:<temp_milli>" lines into a JSON array.
+# Parses "TZ:<zone>:<type>:<temp_milli>" lines into a JSON array of sensors
 build_thermal_json() {
     raw="$1"
     result="[]"
@@ -244,7 +294,7 @@ build_thermal_json() {
     printf '%s' "$result"
 }
 
-# Generic BEGIN/END block extractor (returns the raw lines in between).
+# Generic BEGIN/END block extractor (returns raw lines between markers)
 extract_block_lines() {
     raw="$1"; marker="$2"
     printf '%s\n' "$raw" | awk -v m="$marker" '
@@ -260,7 +310,7 @@ extract_block_lines() {
 }
 
 # Parses 5G NR Cell History lines ("<idx> <ARFCN> <PCI> <RSRP> <RSRQ>" or "+BNRCELLH: ...")
-# into a JSON array, skipping unused/empty history slots (ARFCN=0, PCI=0).
+# into a structured JSON array, discarding empty/unused slots (ARFCN=0, PCI=0).
 build_nearby_cells_json() {
     raw="$1"
     printf '%s\n' "$raw" | awk '
@@ -327,7 +377,7 @@ build_nearby_cells_json() {
     '
 }
 
-# Extracts the current NR5G cell lock status text (e.g. "UNLOCK").
+# Extracts current NR5G cell lock status text (e.g. "UNLOCK" or lock parameters)
 extract_lock_status() {
     raw="$1"
     status=$(printf '%s\n' "$raw" | sed -n 's/^NR5G cell config type: *//p' | head -1 | tr -d '\r')
@@ -335,14 +385,17 @@ extract_lock_status() {
     printf '%s' "$status"
 }
 
-# ---- Step 1: try existing cached session first ----
+# -----------------------------------------------------------------------------
+# 6. Step 1: WebUI Session Verification & Data Retrieval
+# -----------------------------------------------------------------------------
+# Verify existing cached cookie or perform fresh login
 if [ ! -s "$COOKIE_JAR" ]; then
     do_login || { emit_offline_diagnosis; exit 1; }
 fi
 
 PRIMARY=$(fetch_cell_json "network_status_cell_parameters.json")
 
-# if session expired/invalid, response will typically be empty or an error page
+# If session expired, response is empty or error page; auto re-login once
 if [ -z "$PRIMARY" ] || ! printf '%s' "$PRIMARY" | grep -qE '"signal_strength"|"operating_mode"|"band"|"nr_earcn"'; then
     do_login || { emit_offline_diagnosis; exit 1; }
     PRIMARY=$(fetch_cell_json "network_status_cell_parameters.json")
@@ -354,21 +407,30 @@ if [ -z "$PRIMARY" ]; then
     exit 1
 fi
 
+# Fetch secondary (Carrier Aggregation), LAN port, and data volume JSONs
 SECONDARY=$(fetch_cell_json "network_status_secondary_cell_parameters.json")
 LAN=$(fetch_cell_json "network_status_lan.json")
 DEVICE_DATA=$(fetch_cell_json "network_status_device_data.json")
 
+# -----------------------------------------------------------------------------
+# 7. Step 2: Extract & Calculate Telemetry Metrics
+# -----------------------------------------------------------------------------
 SYS_RAW=$(read_sys_cache)
 SYS_RAW=$(printf '%s' "$SYS_RAW" | tr -d '\r')
+
+# Thermal Telemetry
 THERMAL_JSON=$(build_thermal_json "$SYS_RAW")
 
+# Nearby Cell Scanning
 NEARBY_RAW=$(extract_block_lines "$SYS_RAW" "NEARBY")
 NEARBY_CELLS_JSON=$(build_nearby_cells_json "$NEARBY_RAW")
 
+# Cell Lock Configuration
 LOCKCFG_RAW=$(extract_block_lines "$SYS_RAW" "LOCKCFG")
 CELL_LOCK_STATUS=$(extract_lock_status "$LOCKCFG_RAW")
 CELL_LOCK_STATUS_ESC=$(json_escape "$CELL_LOCK_STATUS")
 
+# CPU State Delta Breakdown
 S1=$(extract_stat_block "$SYS_RAW" "STAT1")
 S2=$(extract_stat_block "$SYS_RAW" "STAT2")
 CPU1_LINE=$(printf '%s' "$S1" | cut -d'|' -f1)
@@ -393,6 +455,7 @@ CPU_PCT=$(awk -v idle="$PCT_IDLE" 'BEGIN { if (idle == "") { print ""; } else { 
 CTXT_RATE=$(awk -v a="$CTXT1" -v b="$CTXT2" 'BEGIN { d=b-a; if (d<0) d=0; printf "%d", d }')
 INTR_RATE=$(awk -v a="$INTR1" -v b="$INTR2" 'BEGIN { d=b-a; if (d<0) d=0; printf "%d", d }')
 
+# Memory Statistics
 MEM_STATS=$(compute_mem_stats "$SYS_RAW")
 MEM_TOTAL_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f1)
 MEM_USED_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f2)
@@ -403,6 +466,7 @@ MEM_BUFFERS_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f6)
 MEM_SWAP_TOTAL_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f7)
 MEM_SWAP_USED_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f8)
 
+# Load Averages, Tasks, Uptime, Cores, Model, and Conntrack
 LOAD_RAW=$(printf '%s' "$SYS_RAW" | sed -n 's/^LOADAVG://p')
 LOAD1=$(printf '%s' "$LOAD_RAW" | awk '{print $1}')
 LOAD5=$(printf '%s' "$LOAD_RAW" | awk '{print $2}')
@@ -421,6 +485,7 @@ CONNTRACK_RAW=$(printf '%s' "$SYS_RAW" | sed -n 's/^CONNTRACK://p')
 CONNTRACK_COUNT=$(printf '%s' "$CONNTRACK_RAW" | cut -d: -f1)
 CONNTRACK_MAX=$(printf '%s' "$CONNTRACK_RAW" | cut -d: -f2)
 
+# Default any empty numeric variables to "--"
 for v in CPU_PCT PCT_USER PCT_NICE PCT_SYSTEM PCT_IDLE PCT_IOWAIT PCT_IRQ PCT_SOFTIRQ PCT_STEAL \
          MEM_TOTAL_KB MEM_USED_KB MEM_PCT MEM_FREE_KB MEM_CACHED_KB MEM_BUFFERS_KB MEM_SWAP_TOTAL_KB MEM_SWAP_USED_KB \
          LOAD1 LOAD5 LOAD15 TASKS_RUNNING TASKS_TOTAL UPTIME_SEC CORES CTXT_RATE INTR_RATE CONNTRACK_COUNT CONNTRACK_MAX; do
@@ -430,7 +495,9 @@ done
 [ -z "$CPU_MODEL" ] && CPU_MODEL="Unknown"
 CPU_MODEL_ESC=$(json_escape "$CPU_MODEL")
 
-# ---- Step 2: extract cellular/eth fields ----
+# -----------------------------------------------------------------------------
+# 8. Extract Cellular, Ethernet & Data Volume Fields
+# -----------------------------------------------------------------------------
 OPERATING_MODE=$(get_val "operating_mode" "$PRIMARY")
 
 SIM_STATUS="ok"
@@ -452,6 +519,7 @@ RSRP=$(strip_unit "$(get_val "ss_rsrp" "$PRIMARY")")
 RSRQ=$(strip_unit "$(get_val "ss_rsrq" "$PRIMARY")")
 SINR=$(strip_unit "$(get_val "ss_sinr" "$PRIMARY")")
 
+# Secondary Cell (Carrier Aggregation / SCC)
 SCC_BAND=$(get_val "band" "$SECONDARY")
 SCC_BW=$(get_val "bandwidth" "$SECONDARY")
 SCC_ARFCN=$(get_val "nr_earcn" "$SECONDARY")
@@ -464,6 +532,7 @@ SCC_RSRP=$(strip_unit "$(get_val "ss_rsrp" "$SECONDARY")")
 SCC_RSRQ=$(strip_unit "$(get_val "ss_rsrq" "$SECONDARY")")
 SCC_SINR=$(strip_unit "$(get_val "ss_sinr" "$SECONDARY")")
 
+# Ethernet Link Status
 ETH_LINK_STATUS=$(get_val "link_status" "$LAN")
 ETH_SPEED=$(get_val "speed" "$LAN")
 ETH_DUPLEX=$(get_val "duplex_mode" "$LAN")
@@ -474,6 +543,7 @@ ETH_UPTIME=$(get_val "connection_uptime" "$LAN")
 [ -z "$ETH_DUPLEX" ] && ETH_DUPLEX="--"
 [ -z "$ETH_UPTIME" ] && ETH_UPTIME="--"
 
+# Data Volume & Traffic Counters
 DATA_SENT=$(get_val "data_sent" "$DEVICE_DATA")
 DATA_RECEIVED=$(get_val "data_received" "$DEVICE_DATA")
 PACKET_LOSS=$(get_val "packet_loss" "$DEVICE_DATA")
@@ -482,7 +552,7 @@ PACKET_LOSS=$(get_val "packet_loss" "$DEVICE_DATA")
 [ -z "$DATA_RECEIVED" ] && DATA_RECEIVED="--"
 [ -z "$PACKET_LOSS" ] && PACKET_LOSS="--"
 
-# defaults if secondary/CA cell isn't present
+# Defaults if Secondary/CA Cell is inactive
 [ -z "$SCC_BAND" ] && SCC_BAND="--"
 [ -z "$SCC_BW" ] && SCC_BW="--"
 [ -z "$SCC_ARFCN" ] && SCC_ARFCN="--"
@@ -495,7 +565,9 @@ PACKET_LOSS=$(get_val "packet_loss" "$DEVICE_DATA")
 [ -z "$SCC_RSRQ" ] && SCC_RSRQ="--"
 [ -z "$SCC_SINR" ] && SCC_SINR="--"
 
-# ---- Step 3: emit flat JSON (+ thermal_zones & nearby_cells arrays) ----
+# -----------------------------------------------------------------------------
+# 9. Step 3: Emit Flat JSON Payload
+# -----------------------------------------------------------------------------
 cat <<EOF
 {"server_link":"ONLINE","sim_status":"${SIM_STATUS}","operating_mode":"${OPERATING_MODE}","band":"${BAND}","bandwidth":"${BANDWIDTH}","arfcn":"${ARFCN}","pci":"${PCI}","plmn":"${PLMN}","rrc_state":"${RRC_STATE}","rsrp":"${RSRP}","rsrq":"${RSRQ}","sinr":"${SINR}","bler":"${BLER}","mimo":"${MIMO}","modulation":"${MODULATION}","cqi":"${CQI}","SCC_BAND":"${SCC_BAND}","SCC_BW":"${SCC_BW}","SCC_ARFCN":"${SCC_ARFCN}","SCC_PCI":"${SCC_PCI}","SCC_BLER":"${SCC_BLER}","SCC_MIMO":"${SCC_MIMO}","SCC_MODULATION":"${SCC_MODULATION}","SCC_CQI":"${SCC_CQI}","SCC_RSRP":"${SCC_RSRP}","SCC_RSRQ":"${SCC_RSRQ}","SCC_SINR":"${SCC_SINR}","eth_link_status":"${ETH_LINK_STATUS}","eth_speed":"${ETH_SPEED}","eth_duplex":"${ETH_DUPLEX}","eth_uptime":"${ETH_UPTIME}","data_sent":"${DATA_SENT}","data_received":"${DATA_RECEIVED}","packet_loss":"${PACKET_LOSS}","thermal_zones":${THERMAL_JSON},"odu_cpu_pct":"${CPU_PCT}","odu_cpu_user":"${PCT_USER}","odu_cpu_nice":"${PCT_NICE}","odu_cpu_system":"${PCT_SYSTEM}","odu_cpu_idle":"${PCT_IDLE}","odu_cpu_iowait":"${PCT_IOWAIT}","odu_cpu_irq":"${PCT_IRQ}","odu_cpu_softirq":"${PCT_SOFTIRQ}","odu_cpu_steal":"${PCT_STEAL}","odu_cpu_cores":"${CORES}","odu_cpu_model":"${CPU_MODEL_ESC}","odu_load1":"${LOAD1}","odu_load5":"${LOAD5}","odu_load15":"${LOAD15}","odu_tasks_running":"${TASKS_RUNNING}","odu_tasks_total":"${TASKS_TOTAL}","odu_uptime_sec":"${UPTIME_SEC}","odu_ctxt_rate":"${CTXT_RATE}","odu_intr_rate":"${INTR_RATE}","odu_conntrack_count":"${CONNTRACK_COUNT}","odu_conntrack_max":"${CONNTRACK_MAX}","odu_mem_total_kb":"${MEM_TOTAL_KB}","odu_mem_used_kb":"${MEM_USED_KB}","odu_mem_pct":"${MEM_PCT}","odu_mem_free_kb":"${MEM_FREE_KB}","odu_mem_cached_kb":"${MEM_CACHED_KB}","odu_mem_buffers_kb":"${MEM_BUFFERS_KB}","odu_mem_swap_total_kb":"${MEM_SWAP_TOTAL_KB}","odu_mem_swap_used_kb":"${MEM_SWAP_USED_KB}","nearby_cells":${NEARBY_CELLS_JSON},"cell_lock_status":"${CELL_LOCK_STATUS_ESC}","webui_status":"${WEBUI_STATUS}","telnet_status":"${TELNET_STATUS}"}
 EOF
