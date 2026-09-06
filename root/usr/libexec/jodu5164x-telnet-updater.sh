@@ -27,8 +27,6 @@ fetch_once() {
         return 0
     fi
 
-    CMD="for z in /sys/class/thermal/thermal_zone*; do echo TZ:\$(basename \$z):\$(cat \$z/type 2>/dev/null):\$(cat \$z/temp 2>/dev/null); done; echo STAT1_BEGIN; cat /proc/stat; echo STAT1_END; sleep 1; echo STAT2_BEGIN; cat /proc/stat; echo STAT2_END; echo MEM:\$(awk '/^MemTotal:/{t=\$2} /^MemFree:/{f=\$2} /^MemAvailable:/{a=\$2} /^Buffers:/{b=\$2} /^Cached:/{c=\$2} /^SwapTotal:/{st=\$2} /^SwapFree:/{sf=\$2} END{printf \"%s:%s:%s:%s:%s:%s:%s\", t, f, a, b, c, st, sf}' /proc/meminfo); echo LOADAVG:\$(cat /proc/loadavg); echo UPTIME:\$(cat /proc/uptime); echo CORES:\$(grep -c ^processor /proc/cpuinfo); MODEL_VAL=\$(cat /proc/device-tree/model 2>/dev/null | tr -d '\\0'); if [ -z \"\$MODEL_VAL\" ]; then MODEL_VAL=\$(grep -m1 Hardware /proc/cpuinfo | cut -d: -f2); fi; if [ -z \"\$MODEL_VAL\" ]; then MODEL_VAL=\$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2); fi; echo MODEL:\$MODEL_VAL; echo CONNTRACK:\$(cat /proc/sys/net/netfilter/nf_conntrack_count 2>/dev/null):\$(cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null); echo NEARBY_BEGIN; atcli 'AT+QENG=\"servingcell\"' 2>/dev/null; echo NEARBY_END; echo LOCKCFG_BEGIN; cricli get_nr5g_cell_config; echo LOCKCFG_END"
-
     RUN="telnet ${ODU_HOST} ${TELNET_PORT}"
     if command -v timeout >/dev/null 2>&1; then
         RUN="timeout 28 $RUN"
@@ -41,8 +39,24 @@ fetch_once() {
                 printf '%s\r\n' "$TELNET_PASS"
                 sleep 1
             fi
-            printf '%s\r\n' "$CMD"
-            sleep 12
+            printf 'echo NEARBY_BEGIN\r\n'
+            printf "atcli 'AT+QENG=\"servingcell\"'\r\n"
+            printf "atcli 'AT+BNRCELLH=?'\r\n"
+            printf 'echo NEARBY_END\r\n'
+            printf 'echo LOCKCFG_BEGIN\r\n'
+            printf 'cricli get_nr5g_cell_config\r\n'
+            printf 'echo LOCKCFG_END\r\n'
+            printf 'for z in /sys/class/thermal/thermal_zone*; do echo TZ:\$(basename \$z):\$(cat \$z/type 2>/dev/null):\$(cat \$z/temp 2>/dev/null); done\r\n'
+            printf 'echo STAT1_BEGIN; cat /proc/stat; echo STAT1_END\r\n'
+            printf 'sleep 1\r\n'
+            printf 'echo STAT2_BEGIN; cat /proc/stat; echo STAT2_END\r\n'
+            printf "echo MEM:\$(awk '/^MemTotal:/{t=\$2} /^MemFree:/{f=\$2} /^MemAvailable:/{a=\$2} /^Buffers:/{b=\$2} /^Cached:/{c=\$2} /^SwapTotal:/{st=\$2} /^SwapFree:/{sf=\$2} END{printf \"%%s:%%s:%%s:%%s:%%s:%%s:%%s\", t, f, a, b, c, st, sf}' /proc/meminfo)\r\n"
+            printf 'echo LOADAVG:\$(cat /proc/loadavg)\r\n'
+            printf 'echo UPTIME:\$(cat /proc/uptime)\r\n'
+            printf 'echo CORES:\$(grep -c ^processor /proc/cpuinfo)\r\n'
+            printf "MODEL_VAL=\$(cat /proc/device-tree/model 2>/dev/null | tr -d '\\\\0'); [ -z \"\$MODEL_VAL\" ] && MODEL_VAL=\$(grep -m1 Hardware /proc/cpuinfo | cut -d: -f2); [ -z \"\$MODEL_VAL\" ] && MODEL_VAL=\$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2); echo MODEL:\$MODEL_VAL\r\n"
+            printf 'echo CONNTRACK:\$(cat /proc/sys/net/netfilter/nf_conntrack_count 2>/dev/null):\$(cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null)\r\n'
+            sleep 8
             printf 'exit\r\n'
             sleep 1
         } | $RUN 2>&1
@@ -56,7 +70,7 @@ fetch_once() {
             STATUS="unreachable" ;;
         *"onnection timed out"*|*"Connection timed out"*|*"timed out"*|*"Operation timed out"*)
             STATUS="unreachable" ;;
-        *"STAT1_BEGIN"*|*"TZ:"*)
+        *"STAT1_BEGIN"*|*"TZ:"*|*"NEARBY_BEGIN"*)
             STATUS="ok" ;;
         *"Login incorrect"*|*"login incorrect"*|*"Password:"*|*"login:"*|*"Login:"*)
             STATUS="auth_failed" ;;

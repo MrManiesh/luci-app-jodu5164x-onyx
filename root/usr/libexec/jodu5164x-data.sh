@@ -253,19 +253,20 @@ extract_block_lines() {
             sub(/^[[:space:]]+/, "", line)
             sub(/[[:space:]]+$/, "", line)
         }
-        line == m "_BEGIN" { inblk=1; next }
-        line == m "_END"   { inblk=0; next }
+        line == m "_BEGIN" || line ~ ("^.*" m "_BEGIN[[:space:]]*$") { inblk=1; next }
+        line == m "_END"   || line ~ ("^.*" m "_END[[:space:]]*$")   { inblk=0; next }
         inblk { print }
     '
 }
 
-# Parses "AT+BNRCELLH=?" output lines ("<idx> <ARFCN> <PCI> <RSRP> <RSRQ>")
+# Parses 5G NR Cell History lines ("<idx> <ARFCN> <PCI> <RSRP> <RSRQ>" or "+BNRCELLH: ...")
 # into a JSON array, skipping unused/empty history slots (ARFCN=0, PCI=0).
 build_nearby_cells_json() {
     raw="$1"
     printf '%s\n' "$raw" | awk '
         BEGIN { printf "["; first=1 }
-        NF==5 && $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ {
+        # 5-field format: <idx> <ARFCN> <PCI> <RSRP> <RSRQ>
+        NF>=5 && $1 ~ /^[0-9][0-9]*$/ && $2 ~ /^[0-9][0-9]*$/ && $3 ~ /^[0-9][0-9]*$/ {
             arfcn=$2; pci=$3; rsrp=$4; rsrq=$5
             sub(/\r$/, "", rsrq)
             if (arfcn == "0" && pci == "0") next
@@ -280,13 +281,33 @@ build_nearby_cells_json() {
             }
             next
         }
+        # 4-field format without index: <ARFCN> <PCI> <RSRP> <RSRQ>
+        NF>=4 && $1 ~ /^[0-9][0-9]*$/ && $2 ~ /^[0-9][0-9]*$/ && $3 ~ /^-?[0-9]/ {
+            arfcn=$1; pci=$2; rsrp=$3; rsrq=$4
+            sub(/\r$/, "", rsrq)
+            if (arfcn == "0" && pci == "0") next
+            rsrp_val = sprintf("%.0f", rsrp + 0)
+            rsrq_val = sprintf("%.0f", rsrq + 0)
+            key = pci "_" arfcn
+            if (!(key in seen)) {
+                seen[key] = 1
+                if (!first) printf ","
+                printf "{\"pci\":\"%s\",\"arfcn\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\"}", pci, arfcn, rsrp_val, rsrq_val
+                first = 0
+            }
+            next
+        }
+        # Comma/colon separated format: +BNRCELLH: <pci>,<arfcn>,<rsrp>,<rsrq>
         {
             line = $0
             gsub(/[,:]/, " ", line)
             n = split(line, f)
-            for (i = 1; i <= n - 4; i++) {
-                if (f[i] ~ /^[0-9]+$/ && f[i+1] ~ /^[0-9]+$/ && f[i+2] ~ /^[0-9]+$/) {
-                    arfcn = f[i+1]; pci = f[i+2]; rsrp = f[i+3]; rsrq = f[i+4]
+            for (i = 1; i <= n - 3; i++) {
+                if (f[i] ~ /^[0-9][0-9]*$/ && f[i+1] ~ /^[0-9][0-9]*$/ && f[i+2] ~ /^-?[0-9]/) {
+                    pci = f[i]; arfcn = f[i+1]; rsrp = f[i+2]; rsrq = f[i+3]
+                    if (pci + 0 > 10000 && arfcn + 0 <= 1008) {
+                        tmp = pci; pci = arfcn; arfcn = tmp
+                    }
                     sub(/\r$/, "", rsrq)
                     if (arfcn == "0" && pci == "0") next
                     rsrp_val = sprintf("%.0f", rsrp + 0)
