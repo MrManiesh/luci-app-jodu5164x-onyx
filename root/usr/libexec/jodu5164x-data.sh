@@ -248,8 +248,13 @@ build_thermal_json() {
 extract_block_lines() {
     raw="$1"; marker="$2"
     printf '%s\n' "$raw" | awk -v m="$marker" '
-        $0 == m"_BEGIN" { inblk=1; next }
-        $0 == m"_END"   { inblk=0; next }
+        {
+            line = $0
+            sub(/^[[:space:]]+/, "", line)
+            sub(/[[:space:]]+$/, "", line)
+        }
+        line == m "_BEGIN" { inblk=1; next }
+        line == m "_END"   { inblk=0; next }
         inblk { print }
     '
 }

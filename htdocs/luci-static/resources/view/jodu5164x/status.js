@@ -321,9 +321,34 @@ function nearbyCellsSection(data) {
         }
     }
 
+    // Also include secondary carrier (CA / SCC) if active and not already in table
+    var sccPci = data.SCC_PCI;
+    var sccArfcn = data.SCC_ARFCN;
+    if (sccPci && sccArfcn && sccPci !== '--' && sccPci !== 'NA' && sccArfcn !== '--' && sccArfcn !== 'NA') {
+        var sccPresent = false;
+        for (var j = 0; j < cells.length; j++) {
+            if (String(cells[j].pci) === String(sccPci) && String(cells[j].arfcn) === String(sccArfcn)) {
+                if (!cells[j].isServing) cells[j].isSecondary = true;
+                sccPresent = true;
+                break;
+            }
+        }
+        if (!sccPresent) {
+            cells.push({
+                pci: String(sccPci),
+                arfcn: String(sccArfcn),
+                rsrp: (data.SCC_RSRP && data.SCC_RSRP !== 'NA' && data.SCC_RSRP !== '--') ? data.SCC_RSRP : '--',
+                rsrq: (data.SCC_RSRQ && data.SCC_RSRQ !== 'NA' && data.SCC_RSRQ !== '--') ? data.SCC_RSRQ : '--',
+                isSecondary: true
+            });
+        }
+    }
+
     cells.sort(function (a, b) {
         if (a.isServing) return -1;
         if (b.isServing) return 1;
+        if (a.isSecondary && !b.isSecondary) return -1;
+        if (!a.isSecondary && b.isSecondary) return 1;
         return parseFloat(b.rsrp) - parseFloat(a.rsrp);
     });
 
@@ -366,7 +391,12 @@ function nearbyCellsSection(data) {
             pciDisplay.push(E('span', {
                 'class': 'jodu-badge',
                 'style': 'margin-left:6px;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);font-size:0.68em;'
-            }, 'Serving'));
+            }, 'Serving (PCC)'));
+        } else if (c.isSecondary) {
+            pciDisplay.push(E('span', {
+                'class': 'jodu-badge',
+                'style': 'margin-left:6px;background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.3);font-size:0.68em;'
+            }, 'Secondary (SCC)'));
         }
         return E('tr', { 'class': 'jodu-tr' }, [
             E('td', { 'class': 'jodu-td-lbl' }, pciDisplay),
@@ -384,7 +414,7 @@ function nearbyCellsSection(data) {
     var table = E('div', { 'style': 'max-height:280px;overflow-y:auto' }, [
         E('table', { 'class': 'jodu-table' }, [headerRow].concat(rows))
     ]);
-    return panel('Nearby Cells & Tower Scan', E('div', {}, [statusRow, table]), '🛰️');
+    return panel('Nearby Cells & Tower Scan (' + cells.length + ' Towers)', E('div', {}, [statusRow, table]), '🛰️');
 }
 
 function rebootOdu() {
