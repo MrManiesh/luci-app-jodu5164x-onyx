@@ -46,16 +46,16 @@ fetch_once() {
             printf 'echo LOCKCFG_BEGIN\r\n'
             printf 'cricli get_nr5g_cell_config\r\n'
             printf 'echo LOCKCFG_END\r\n'
-            printf 'for z in /sys/class/thermal/thermal_zone*; do echo TZ:\$(basename \$z):\$(cat \$z/type 2>/dev/null):\$(cat \$z/temp 2>/dev/null); done\r\n'
+            printf 'for z in /sys/class/thermal/thermal_zone*; do echo TZ:$(basename $z):$(cat $z/type 2>/dev/null):$(cat $z/temp 2>/dev/null); done\r\n'
             printf 'echo STAT1_BEGIN; cat /proc/stat; echo STAT1_END\r\n'
             printf 'sleep 1\r\n'
             printf 'echo STAT2_BEGIN; cat /proc/stat; echo STAT2_END\r\n'
             printf "echo MEM:\$(awk '/^MemTotal:/{t=\$2} /^MemFree:/{f=\$2} /^MemAvailable:/{a=\$2} /^Buffers:/{b=\$2} /^Cached:/{c=\$2} /^SwapTotal:/{st=\$2} /^SwapFree:/{sf=\$2} END{printf \"%%s:%%s:%%s:%%s:%%s:%%s:%%s\", t, f, a, b, c, st, sf}' /proc/meminfo)\r\n"
-            printf 'echo LOADAVG:\$(cat /proc/loadavg)\r\n'
-            printf 'echo UPTIME:\$(cat /proc/uptime)\r\n'
-            printf 'echo CORES:\$(grep -c ^processor /proc/cpuinfo)\r\n'
+            printf 'echo LOADAVG:$(cat /proc/loadavg)\r\n'
+            printf 'echo UPTIME:$(cat /proc/uptime)\r\n'
+            printf 'echo CORES:$(grep -c ^processor /proc/cpuinfo)\r\n'
             printf "MODEL_VAL=\$(cat /proc/device-tree/model 2>/dev/null | tr -d '\\\\0'); [ -z \"\$MODEL_VAL\" ] && MODEL_VAL=\$(grep -m1 Hardware /proc/cpuinfo | cut -d: -f2); [ -z \"\$MODEL_VAL\" ] && MODEL_VAL=\$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2); echo MODEL:\$MODEL_VAL\r\n"
-            printf 'echo CONNTRACK:\$(cat /proc/sys/net/netfilter/nf_conntrack_count 2>/dev/null):\$(cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null)\r\n'
+            printf 'echo CONNTRACK:$(cat /proc/sys/net/netfilter/nf_conntrack_count 2>/dev/null):$(cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null)\r\n'
             sleep 8
             printf 'exit\r\n'
             sleep 1
