@@ -6,13 +6,21 @@
 'require dom';
 'require uci';
 
+/* =============================================================================
+   luci-app-jodu5164x-status - Advanced 5G ODU Dashboard
+   Author: Manish Matwa Choudhary
+   ============================================================================= */
+
 var SCRIPT_PATH = '/usr/libexec/jodu5164x-data.sh';
 
-var COLOR_GOOD = '#2ecc71';
-var COLOR_OK = '#f1c40f';
-var COLOR_POOR = '#e74c3c';
-var COLOR_NEUTRAL = '#aaa';
-var COLOR_BLUE = '#5b8def';
+// Modern Curated Color Palette
+var COLOR_GOOD = '#10b981';     // Emerald 500
+var COLOR_OK = '#f59e0b';       // Amber 500
+var COLOR_POOR = '#ef4444';     // Rose 500
+var COLOR_NEUTRAL = '#94a3b8';  // Slate 400
+var COLOR_BLUE = '#3b82f6';     // Blue 500
+var COLOR_PURPLE = '#8b5cf6';   // Purple 500
+var COLOR_CYAN = '#06b6d4';     // Cyan 500
 
 var rebootState = { inProgress: false, sawOffline: false };
 var triggerRefresh = null;
@@ -46,7 +54,7 @@ function qualityColor(kind, raw) {
         return COLOR_NEUTRAL;
     switch (kind) {
         case 'rsrp':
-            if (v >= -90) return COLOR_GOOD;
+            if (v >= -85) return COLOR_GOOD;
             if (v >= -105) return COLOR_OK;
             return COLOR_POOR;
         case 'rsrq':
@@ -58,10 +66,11 @@ function qualityColor(kind, raw) {
             if (v >= 0) return COLOR_OK;
             return COLOR_POOR;
         case 'bler':
-            if (v <= 5) return COLOR_GOOD;
-            if (v <= 15) return COLOR_OK;
+            if (v <= 2) return COLOR_GOOD;
+            if (v <= 10) return COLOR_OK;
             return COLOR_POOR;
         case 'speed':
+            if (v >= 2000) return COLOR_PURPLE;
             if (v >= 1000) return COLOR_GOOD;
             if (v >= 100) return COLOR_OK;
             return COLOR_POOR;
@@ -77,7 +86,7 @@ function formatSpeed(raw) {
     if (v >= 1000) {
         var gbps = v / 1000;
         var gStr = (gbps % 1 === 0) ? gbps.toFixed(0) : gbps.toFixed(1);
-        return gStr + ' Gigabit';
+        return gStr + ' Gbps';
     }
     return v + ' Mbps';
 }
@@ -107,38 +116,60 @@ function signalQualityPercent(rsrp) {
     return Math.round(pct);
 }
 
-function summaryCard(label, value, color, sublabel) {
+function summaryCard(label, value, color, sublabel, icon) {
     var children = [];
-    children.push(E('div', { 'style': 'font-size:1.4em;font-weight:700;color:' + (color || '#fff') + ';margin:6px 0' }, value));
-    if (sublabel) {
-        children.push(E('div', { 'style': 'font-size:0.75em;color:#888' }, sublabel));
+    if (icon) {
+        children.push(E('div', { 'class': 'jodu-sum-icon' }, icon));
     }
-    children.push(E('div', { 'style': 'font-size:0.7em;letter-spacing:0.06em;text-transform:uppercase;color:#888;margin-top:4px' }, label));
-    return E('div', { 'style': 'flex:1;min-width:140px;padding:16px;text-align:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;' }, children);
+    children.push(E('div', { 'class': 'jodu-sum-val', 'style': 'color:' + (color || '#f8fafc') }, value));
+    if (sublabel) {
+        children.push(E('div', { 'class': 'jodu-sum-sub' }, sublabel));
+    }
+    children.push(E('div', { 'class': 'jodu-sum-lbl' }, label));
+    return E('div', { 'class': 'jodu-sum-card' }, children);
 }
 
 function summaryRow(data, online) {
+    if (!online) {
+        return E('div', { 'class': 'jodu-sum-row' }, [
+            summaryCard('NETWORK', 'OFFLINE', COLOR_POOR, 'ODU Unreachable', '📡'),
+            summaryCard('SIGNAL STRENGTH', '--', COLOR_NEUTRAL, 'No connection', '📶'),
+            summaryCard('RADIO PURITY', '--', COLOR_NEUTRAL, 'Telemetry paused', '⚡'),
+            summaryCard('ETHERNET LINK', formatSpeed(data.eth_speed), COLOR_NEUTRAL, data.eth_link_status || 'Disconnected', '🔌')
+        ]);
+    }
     var qualityPct = signalQualityPercent(data.rsrp);
     var qualityColorVal = qualityPct == null ? COLOR_NEUTRAL : (qualityPct >= 70 ? COLOR_GOOD : (qualityPct >= 40 ? COLOR_OK : COLOR_POOR));
     var noSim = data.sim_status === 'missing';
-    return E('div', { 'style': 'display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px' }, [
-        noSim ? summaryCard('Network', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM') : summaryCard('Network', 'JioTrue 5G', '#5b8def', (data.plmn || '') + (data.operating_mode ? ' | NR5G-' + data.operating_mode : '')),
-        summaryCard('Signal Quality', qualityPct != null ? qualityPct + '%' : 'NA', qualityColorVal),
-        summaryCard('Connection', online ? 'LINK ACTIVE' : 'LINK DOWN', online ? COLOR_GOOD : COLOR_POOR)
+    var speedCol = ethSpeedColor(data.eth_speed);
+    var netSub = (data.plmn || '405-874') + (data.operating_mode ? ' · NR5G-' + data.operating_mode : '') + (data.band ? ' · B' + data.band : '');
+    var sigSub = qualityPct != null ? (qualityPct + '% · ' + (qualityPct >= 75 ? 'Excellent Coverage' : (qualityPct >= 45 ? 'Good Signal' : 'Weak Signal'))) : 'Sampling...';
+    var sinrVal = (data.sinr && data.sinr !== 'NA' && data.sinr !== '--') ? data.sinr + ' dB SINR' : 'NA';
+    var puritySub = (data.rsrq && data.rsrq !== 'NA' && data.rsrq !== '--') ? 'RSRQ: ' + data.rsrq + ' dB' : 'Carrier Sync Active';
+    var ethSub = (data.eth_link_status ? 'Link: ' + data.eth_link_status : 'Port Active') + (data.eth_duplex ? ' · ' + data.eth_duplex : '');
+
+    return E('div', { 'class': 'jodu-sum-row' }, [
+        noSim ? summaryCard('NETWORK', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM', '📱') :
+                summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, '📡'),
+        summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', qualityColor('rsrp', data.rsrp), sigSub, '📶'),
+        summaryCard('RADIO PURITY', sinrVal, qualityColor('sinr', data.sinr), puritySub, '⚡'),
+        summaryCard('ETHERNET LINK', formatSpeed(data.eth_speed), speedCol, ethSub, '🔌')
     ]);
 }
 
 function colorDot(color) {
-    return E('span', { 'style': 'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:' + color }, '');
+    return E('span', {
+        'class': 'jodu-dot',
+        'style': 'background:' + color + ';box-shadow:0 0 8px ' + color + '80;'
+    }, '');
 }
 
 function paramRow(label, value, color) {
-    var cellStyle = 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08);text-align:right';
     var display = (value != null && value !== '') ? value : 'NA';
     var cellChildren = color ? [colorDot(color), display] : [display];
-    return E('tr', {}, [
-        E('td', { 'style': 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.08);color:#999' }, label),
-        E('td', { 'style': cellStyle + (color ? ';color:' + color + ';font-weight:600' : '') }, cellChildren)
+    return E('tr', { 'class': 'jodu-tr' }, [
+        E('td', { 'class': 'jodu-td-lbl' }, label),
+        E('td', { 'class': 'jodu-td-val' + (color ? ' jodu-has-color' : ''), 'style': color ? ('color:' + color) : '' }, cellChildren)
     ]);
 }
 
@@ -152,12 +183,13 @@ function secondaryCellPanel(merged) {
     var rsrp = merged['scc_rsrp'];
     var caActive = !isEmptyValue(band) || !isEmptyValue(pci) || !isEmptyValue(rsrp);
     if (!caActive) {
-        return panel('Cellular Parameters (Secondary Cell)', E('div', { 'style': 'padding:20px 0;text-align:center;color:#888' }, [
-            E('div', { 'style': 'font-size:1.6em;margin-bottom:6px' }, '\u{1F4F6}'),
-            E('p', { 'style': 'margin:0' }, 'Carrier Aggregation is not active in your area right now.')
-        ]));
+        return panel('Cellular Parameters (Secondary Cell)', E('div', { 'class': 'jodu-idle-panel' }, [
+            E('div', { 'style': 'font-size:2.2em;margin-bottom:8px;opacity:0.6;' }, '📶'),
+            E('h4', { 'style': 'margin:0 0 4px;color:#94a3b8;font-weight:600;' }, 'Carrier Aggregation Inactive'),
+            E('p', { 'style': 'margin:0;color:#64748b;font-size:0.85em;' }, 'Secondary carrier activates dynamically during high throughput demand.')
+        ]), '⚡');
     }
-    return panel('Cellular Parameters (Secondary Cell)', cellTable('scc_', merged));
+    return panel('Cellular Parameters (Secondary Cell)', cellTable('scc_', merged), '⚡');
 }
 
 function cellTable(prefix, d) {
@@ -183,13 +215,16 @@ function cellTable(prefix, d) {
         paramRow('SS-RSRQ', (rsrq != null && rsrq !== 'NA' && rsrq !== '--') ? rsrq + ' dB' : rsrq, qualityColor('rsrq', rsrq)),
         paramRow('SS-SINR', (sinr != null && sinr !== 'NA' && sinr !== '--') ? sinr + ' dB' : sinr, qualityColor('sinr', sinr))
     ];
-    return E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.9em' }, rows);
+    return E('table', { 'class': 'jodu-table' }, rows);
 }
 
-function panel(title, contentNode) {
-    return E('div', { 'style': 'flex:1;min-width:280px;padding:16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;' }, [
-        E('h3', { 'style': 'margin-top:0;color:#ddd;font-size:1.05em;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:8px;margin-bottom:12px;' }, title),
-        contentNode
+function panel(title, contentNode, icon) {
+    return E('div', { 'class': 'jodu-card' }, [
+        E('div', { 'class': 'jodu-card-hdr' }, [
+            icon ? E('span', { 'class': 'jodu-card-icon' }, icon) : '',
+            E('span', { 'class': 'jodu-card-title' }, title)
+        ]),
+        E('div', { 'class': 'jodu-card-body' }, [contentNode])
     ]);
 }
 
@@ -236,44 +271,51 @@ function nearbyCellsSection(data) {
     cells.sort(function (a, b) { return parseFloat(b.rsrp) - parseFloat(a.rsrp); });
     var lockStatus = data.cell_lock_status || 'UNKNOWN';
     var isLocked = lockStatus !== 'UNLOCK' && lockStatus !== 'UNKNOWN';
-    var statusRow = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px' }, [
-        E('span', { 'style': 'color:#aaa;font-size:0.85em' }, ['Lock Status: ', E('strong', { 'style': 'color:#eee' }, lockStatus)]),
-        isLocked ? E('button', { 'class': 'btn cbi-button-positive', 'style': 'font-size:0.8em;padding:4px 10px', 'click': unlockCell }, 'Unlock') : ''
+    var statusBadge = E('span', {
+        'class': 'jodu-badge',
+        'style': isLocked ? 'background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);' : 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);'
+    }, isLocked ? 'LOCKED (' + lockStatus + ')' : 'UNLOCKED (AUTO)');
+
+    var statusRow = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px' }, [
+        E('div', { 'style': 'color:#94a3b8;font-size:0.85em;display:flex;align-items:center;gap:6px;' }, [
+            'Lock State: ', statusBadge
+        ]),
+        isLocked ? E('button', { 'class': 'btn cbi-button-positive', 'style': 'font-size:0.8em;padding:4px 10px;border-radius:6px;', 'click': unlockCell }, '🔓 Unlock') : ''
     ]);
     if (!cells.length) {
-        return panel('Nearby Cells', E('div', {}, [statusRow, E('p', { 'style': 'color:#888' }, 'No nearby cell data available yet.')]));
+        return panel('Nearby Cells & Tower Scan', E('div', {}, [statusRow, E('p', { 'style': 'color:#64748b;font-size:0.9em;padding:12px 0;' }, 'No neighbouring cells detected in the current sector scan.')]), '🛰️');
     }
-    var headerRow = E('tr', {}, [
-        E('th', { 'style': 'text-align:left;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'PCI'),
-        E('th', { 'style': 'text-align:left;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'ARFCN'),
-        E('th', { 'style': 'text-align:right;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'RSRP'),
-        E('th', { 'style': 'text-align:right;padding:6px 8px;color:#888;font-weight:normal;font-size:0.8em' }, 'RSRQ'),
-        E('th', { 'style': 'padding:6px 8px' }, '')
+    var headerRow = E('tr', { 'class': 'jodu-th-tr' }, [
+        E('th', { 'class': 'jodu-th' }, 'PCI'),
+        E('th', { 'class': 'jodu-th' }, 'ARFCN'),
+        E('th', { 'class': 'jodu-th', 'style': 'text-align:right' }, 'RSRP'),
+        E('th', { 'class': 'jodu-th', 'style': 'text-align:right' }, 'RSRQ'),
+        E('th', { 'class': 'jodu-th', 'style': 'text-align:right' }, 'Action')
     ]);
     var rows = cells.map(function (c) {
         var color = qualityColor('rsrp', c.rsrp);
-        return E('tr', {}, [
-            E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.08)' }, c.pci),
-            E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.08)' }, c.arfcn),
-            E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.08);text-align:right;color:' + color }, c.rsrp + ' dBm'),
-            E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.08);text-align:right;color:#999' }, c.rsrq + ' dB'),
-            E('td', { 'style': 'padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.08);text-align:right' }, [
+        return E('tr', { 'class': 'jodu-tr' }, [
+            E('td', { 'class': 'jodu-td-lbl', 'style': 'font-weight:600;' }, c.pci),
+            E('td', { 'class': 'jodu-td-lbl' }, c.arfcn),
+            E('td', { 'class': 'jodu-td-val', 'style': 'color:' + color + ';font-weight:600;' }, c.rsrp + ' dBm'),
+            E('td', { 'class': 'jodu-td-val', 'style': 'color:#94a3b8;' }, c.rsrq + ' dB'),
+            E('td', { 'class': 'jodu-td-val', 'style': 'text-align:right' }, [
                 E('button', {
-                    'class': 'btn', 'style': 'font-size:0.78em;padding:3px 8px',
+                    'class': 'btn jodu-btn-sm',
                     'click': (function (pci, arfcn) { return function () { lockCell(pci, arfcn); }; })(c.pci, c.arfcn)
                 }, 'Lock')
             ])
         ]);
     });
     var table = E('div', { 'style': 'max-height:280px;overflow-y:auto' }, [
-        E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.85em' }, [headerRow].concat(rows))
+        E('table', { 'class': 'jodu-table' }, [headerRow].concat(rows))
     ]);
-    return panel('Nearby Cells', E('div', {}, [statusRow, table]));
+    return panel('Nearby Cells & Tower Scan', E('div', {}, [statusRow, table]), '🛰️');
 }
 
 function rebootOdu() {
-    ui.showModal('Reboot ODU?', [
-        E('p', {}, 'This will restart the ODU. The connection will drop for a minute or two while it reboots.'),
+    ui.showModal('Reboot 5G ODU?', [
+        E('p', {}, 'This will reboot the Sercomm ODU modem. Internet connectivity will drop for a minute or two while it re-initializes and syncs with the cell tower.'),
         E('div', { 'class': 'right', 'style': 'margin-top:16px;display:flex;justify-content:flex-end;gap:8px' }, [
             E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'),
             E('button', {
@@ -282,6 +324,7 @@ function rebootOdu() {
                     ui.hideModal();
                     rebootState.inProgress = true;
                     rebootState.sawOffline = false;
+                    notify('Reboot command sent to ODU. Monitoring recovery...', 'info', 4000);
                     if (triggerRefresh) triggerRefresh();
                     fs.exec_direct('/usr/libexec/jodu5164x-reboot.sh', []).catch(function () { });
                     setTimeout(function () {
@@ -291,7 +334,7 @@ function rebootOdu() {
                         }
                     }, 180000);
                 }
-            }, 'Reboot')
+            }, 'Reboot Now')
         ])
     ]);
 }
@@ -299,38 +342,38 @@ function rebootOdu() {
 function ethSpeedColor(mbps) {
     var v = parseFloat(mbps);
     if (isNaN(v) || v <= 0) return COLOR_NEUTRAL;
-    if (v >= 2500) return COLOR_GOOD;
-    if (v >= 1000) return COLOR_BLUE;
+    if (v >= 2500) return COLOR_PURPLE;
+    if (v >= 1000) return COLOR_GOOD;
     return COLOR_POOR;
 }
 
 function ethSpeedSuggestion(mbps) {
     var v = parseFloat(mbps);
     if (isNaN(v) || v <= 0 || v >= 1000) return '';
-    return '\u26a0 Link speed is only ' + v + ' Mbps. Use a Gigabit-rated Ethernet cable/port to reach 1 Gbps+.';
+    return '⚠️ Link negotiated at ' + v + ' Mbps. Use a Cat6+ Ethernet cable or Gigabit port to achieve 1 Gbps+ speeds.';
 }
 
 function ethSection(data) {
     var speedColor = ethSpeedColor(data.eth_speed);
     var rows = [
-        paramRow('Link Status', data.eth_link_status),
+        paramRow('Link Status', data.eth_link_status, data.eth_link_status === 'Up' ? COLOR_GOOD : COLOR_POOR),
         paramRow('Speed', formatSpeed(data.eth_speed), speedColor),
         paramRow('Duplex', data.eth_duplex)
     ];
-    var table = E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.9em' }, rows);
+    var table = E('table', { 'class': 'jodu-table' }, rows);
     var children = [table];
     var speedSuggestion = ethSpeedSuggestion(data.eth_speed);
     if (speedSuggestion) {
-        children.push(E('div', { 'style': 'margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(231,76,60,0.12);color:' + COLOR_POOR + ';font-size:0.82em' }, speedSuggestion));
+        children.push(E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(239,68,68,0.12);color:#f87171;' }, speedSuggestion));
     }
     var uptimeSec = parseInt(data.odu_uptime_sec, 10);
-    if (!isNaN(uptimeSec) && uptimeSec > 86400) {
-        children.push(E('div', { 'style': 'margin-top:14px;padding:8px 10px;border-radius:6px;background:rgba(241,196,15,0.12);color:' + COLOR_OK + ';font-size:0.85em;font-weight:600' }, '\u26a0 Reboot Recommended \u2014 ODU uptime ' + formatUptime(data.odu_uptime_sec)));
+    if (!isNaN(uptimeSec) && uptimeSec > 86400 * 7) {
+        children.push(E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(245,158,11,0.12);color:#fbbf24;' }, '⚠️ High ODU uptime (' + formatUptime(data.odu_uptime_sec) + '). A periodic reboot improves 5G stability.'));
     }
     children.push(E('div', { 'style': 'margin-top:14px' }, [
-        E('button', { 'class': 'btn cbi-button-negative', 'click': rebootOdu }, 'Reboot ODU')
+        E('button', { 'class': 'btn cbi-button-negative', 'style': 'width:100%;padding:8px;border-radius:8px;font-weight:600;', 'click': rebootOdu }, '🔄 Reboot 5G ODU')
     ]));
-    return panel('ODU Management', E('div', {}, children));
+    return panel('ODU Management & Hardware Control', E('div', {}, children), '🔌');
 }
 
 function parseDataSize(str) {
@@ -399,51 +442,51 @@ function dataUsageSection(data) {
     var totalBytes = (sentBytes != null && receivedBytes != null) ? (sentBytes + receivedBytes) : null;
     pushDataUsageHistory(totalBytes);
     var rows = [
-        paramRow('Data Sent', data.data_sent),
-        paramRow('Data Received', data.data_received),
-        paramRow('Packet Loss', data.packet_loss)
+        paramRow('Data Uploaded', data.data_sent),
+        paramRow('Data Downloaded', data.data_received),
+        paramRow('Packet Loss', data.packet_loss, parseFloat(data.packet_loss) === 0 ? COLOR_GOOD : COLOR_OK)
     ];
-    var table = E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.9em' }, rows);
-    var note = E('div', { 'style': 'margin-top:10px;font-size:0.78em;color:#888;font-style:italic' }, '\u26a0 These figures may not be accurate.');
+    var table = E('table', { 'class': 'jodu-table' }, rows);
+    var note = E('div', { 'style': 'margin-top:10px;font-size:0.75em;color:#64748b;font-style:italic;' }, 'ℹ️ Session counters retrieved from ODU firmware.');
     var windows = [
         { label: 'Last 5 min', ms: 5 * 60 * 1000, color: COLOR_BLUE },
         { label: 'Last 1 hour', ms: 60 * 60 * 1000, color: COLOR_GOOD },
         { label: 'Last 5 hours', ms: 5 * 60 * 60 * 1000, color: COLOR_OK },
-        { label: 'Last 24 hours', ms: 24 * 60 * 60 * 1000, color: '#c77dff' }
+        { label: 'Last 24 hours', ms: 24 * 60 * 60 * 1000, color: COLOR_PURPLE }
     ];
     var historyRows = windows.map(function (w) {
         var result = usageInWindow(totalBytes, w.ms);
-        var display = 'collecting...';
+        var display = 'sampling...';
         var color = COLOR_NEUTRAL;
         if (result != null) {
             display = formatBytes(result.bytes);
             if (!result.fullWindow) {
-                display += ' (tracked ' + formatShortDuration(result.elapsedMs / 1000) + ' so far)';
+                display += ' (' + formatShortDuration(result.elapsedMs / 1000) + ')';
             }
             color = w.color;
         }
         return paramRow(w.label, display, color);
     });
-    var historyTable = E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.85em;margin-top:6px' }, historyRows);
-    var historyNote = E('div', { 'style': 'margin-top:8px;font-size:0.75em;color:#666;font-style:italic' }, 'Tracked since this page was opened.');
-    return panel('Data Usage', E('div', {}, [table, note, subheading('Usage Over Time'), historyTable, historyNote]));
+    var historyTable = E('table', { 'class': 'jodu-table', 'style': 'margin-top:8px;' }, historyRows);
+    return panel('Data Usage & Bandwidth Tracker', E('div', {}, [table, note, subheading('Usage Over Time'), historyTable]), '📈');
 }
 
 function tempColor(celsius) {
     var v = parseFloat(celsius);
     if (isNaN(v)) return COLOR_NEUTRAL;
     if (v <= 45) return COLOR_GOOD;
-    if (v <= 60) return COLOR_OK;
+    if (v <= 62) return COLOR_OK;
     return COLOR_POOR;
 }
 
 var SENSOR_NAME_MAP = {
-    'cpu': 'CPU', 'cpuss': 'CPU', 'gpu': 'GPU', 'modem': 'Modem',
-    'mdmss': 'Modem Subsystem', 'mdmq6': 'Modem Q6', 'aoss': 'AOSS',
-    'lte': 'LTE', 'sub6': 'Sub-6', 'ambient': 'Ambient', 'pa': 'PA',
-    'pa0': 'PA0', 'pa1': 'PA1', 'pa2': 'PA2', 'sdr': 'SDR',
-    'sdr0': 'SDR0', 'sdr1': 'SDR1', 'mmw': 'mmWave', 'mmw0': 'mmWave0',
-    'ific': 'IFIC', 'ific0': 'IFIC0'
+    'cpu': 'CPU Core', 'cpuss': 'CPU Subsystem', 'gpu': 'GPU Core', 'modem': '5G Modem',
+    'mdmss': 'Modem Subsystem', 'mdmq6': 'Modem DSP (Q6)', 'aoss': 'Always-On Subsystem',
+    'lte': 'LTE Transceiver', 'sub6': 'Sub-6 GHz RF', 'ambient': 'Chassis Ambient',
+    'pa': 'Power Amplifier', 'pa0': 'Power Amplifier 0', 'pa1': 'Power Amplifier 1',
+    'pa2': 'Power Amplifier 2', 'sdr': 'SDR Transceiver', 'sdr0': 'SDR Transceiver 0',
+    'sdr1': 'SDR Transceiver 1', 'mmw': 'mmWave RFIC', 'mmw0': 'mmWave RFIC 0',
+    'ific': 'IFIC Subsystem', 'ific0': 'IFIC 0'
 };
 
 function friendlySensorName(rawType, fallbackZone) {
@@ -469,8 +512,8 @@ function usagePctColor(pct) {
 function usageBar(pct, color) {
     var v = parseFloat(pct);
     var width = isNaN(v) ? 0 : Math.max(0, Math.min(100, v));
-    return E('div', { 'style': 'background:rgba(255,255,255,0.08);border-radius:4px;height:8px;overflow:hidden;margin-top:4px' }, [
-        E('div', { 'style': 'width:' + width + '%;height:100%;background:' + color + ';transition:width .3s' }, '')
+    return E('div', { 'class': 'jodu-bar-track' }, [
+        E('div', { 'class': 'jodu-bar-fill', 'style': 'width:' + width + '%;background:' + color + ';' }, '')
     ]);
 }
 
@@ -497,34 +540,34 @@ function pushMemHistory(pct) {
 }
 
 function circleGauge(pct, color, size) {
-    size = size || 130;
-    var stroke = 10;
+    size = size || 120;
+    var stroke = 8;
     var r = (size - stroke) / 2;
     var c = 2 * Math.PI * r;
     var v = parseFloat(pct);
     var frac = isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) / 100;
     var offset = c * (1 - frac);
     var mid = size / 2;
-    var svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="background:transparent !important;display:block">' +
-        '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="' + stroke + '"/>' +
-        '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + offset.toFixed(1) + '" transform="rotate(-90 ' + mid + ' ' + mid + ')" style="transition:stroke-dashoffset 0.5s ease"/></svg>';
-    var wrap = E('div', { 'style': 'position:relative;width:' + size + 'px;height:' + size + 'px;margin:8px auto;background:transparent !important' });
+    var svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="display:block;margin:0 auto;filter:drop-shadow(0 0 6px ' + color + '40);">' +
+        '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="' + stroke + '"/>' +
+        '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + offset.toFixed(1) + '" transform="rotate(-90 ' + mid + ' ' + mid + ')" style="transition:stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1), stroke 0.4s ease;"/></svg>';
+    var wrap = E('div', { 'style': 'position:relative;width:' + size + 'px;height:' + size + 'px;margin:8px auto;' });
     wrap.innerHTML = svg;
     return wrap;
 }
 
 function gaugeWithLabel(pct, color, size, big, small) {
     var g = circleGauge(pct, color, size);
-    var label = E('div', { 'style': 'position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center' }, [
-        E('div', { 'style': 'font-size:1.8em;font-weight:700;color:' + color }, big),
-        small ? E('div', { 'style': 'font-size:0.75em;color:#888;margin-top:2px' }, small) : ''
+    var label = E('div', { 'class': 'jodu-gauge-center' }, [
+        E('div', { 'class': 'jodu-gauge-val', 'style': 'color:' + color }, big),
+        small ? E('div', { 'class': 'jodu-gauge-sub' }, small) : ''
     ]);
     g.appendChild(label);
     return g;
 }
 
 function sparkline(history, color, width, height) {
-    width = width || 260;
+    width = width || 240;
     height = height || 40;
     if (!history.length) {
         return E('div', { 'style': 'height:' + height + 'px' });
@@ -534,25 +577,35 @@ function sparkline(history, color, width, height) {
     var pts = [];
     for (var i = 0; i < history.length; i++) {
         var x = (i * step).toFixed(1);
-        var y = (height - (history[i] / max) * height).toFixed(1);
+        var y = (height - (history[i] / max) * (height - 8) - 4).toFixed(1);
         pts.push(x + ',' + y);
     }
-    var svg = '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" style="background:transparent !important;display:block">' +
-        '<polyline points="' + pts.join(' ')+ '" fill="none" stroke="' + color + '" stroke-width="2"/></svg>';
-    var wrap = E('div', { 'style': 'width:100%;background:transparent !important' });
+    var polyline = pts.join(' ');
+    var areaPts = '0,' + height + ' ' + polyline + ' ' + width + ',' + height;
+    var gradId = 'spk-grad-' + Math.random().toString(36).substr(2, 6);
+    var svg = '<svg width="100%" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" style="display:block;overflow:visible;">' +
+        '<defs>' +
+        '<linearGradient id="' + gradId + '" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.28"/>' +
+        '<stop offset="100%" stop-color="' + color + '" stop-opacity="0.0"/>' +
+        '</linearGradient>' +
+        '</defs>' +
+        '<polygon points="' + areaPts + '" fill="url(#' + gradId + ')"/>' +
+        '<polyline points="' + polyline + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var wrap = E('div', { 'style': 'width:100%;border-radius:4px;overflow:hidden;margin-top:6px;' });
     wrap.innerHTML = svg;
     return wrap;
 }
 
 function statLine(label, value) {
-    return E('div', { 'style': 'display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);font-size:0.9em' }, [
-        E('span', { 'style': 'color:#999' }, label),
-        E('span', { 'style': 'color:#ddd;font-weight:600' }, value)
+    return E('div', { 'class': 'jodu-stat-row' }, [
+        E('span', { 'class': 'jodu-stat-lbl' }, label),
+        E('span', { 'class': 'jodu-stat-val' }, value)
     ]);
 }
 
 function subheading(text) {
-    return E('div', { 'style': 'text-align:center;color:#777;font-size:0.75em;letter-spacing:1px;text-transform:uppercase;margin:16px 0 8px' }, text);
+    return E('div', { 'class': 'jodu-subheading' }, text);
 }
 
 function cpuGaugePanel(data) {
@@ -563,7 +616,7 @@ function cpuGaugePanel(data) {
     var title = (data.odu_cpu_model && data.odu_cpu_model !== 'Unknown' ? data.odu_cpu_model : 'CPU') +
         (cores ? ' (' + cores + 'C/' + cores + 'T)' : '');
     var content = E('div', {}, [
-        gaugeWithLabel(data.odu_cpu_pct, color, 130, pctDisplay, cores ? cores + ' Cores' : null),
+        gaugeWithLabel(data.odu_cpu_pct, color, 120, pctDisplay, cores ? cores + ' Cores' : null),
         statLine('Cores / Threads', cores ? (cores + 'C / ' + cores + 'T') : 'NA'),
         statLine('Tasks (Run/Total)', (data.odu_tasks_running !== '--' ? data.odu_tasks_running : 'NA') + ' / ' + (data.odu_tasks_total !== '--' ? data.odu_tasks_total : 'NA')),
         subheading('System Status'),
@@ -572,7 +625,7 @@ function cpuGaugePanel(data) {
         subheading('Usage History (5 min)'),
         sparkline(cpuHistory, color)
     ]);
-    return panel(title, content);
+    return panel(title, content, '⚙️');
 }
 
 function memGaugePanel(data) {
@@ -589,13 +642,13 @@ function memGaugePanel(data) {
     var ramNote = '';
     if (totalMb != null) {
         if (totalMb >= 600) {
-            ramNote = E('div', { 'style': 'margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(91,141,239,0.12);color:' + COLOR_BLUE + ';font-size:0.82em' }, '\u2139 This ODU supports 2.5 Gigabit Ethernet.');
+            ramNote = E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(59,130,246,0.12);color:#60a5fa;' }, 'ℹ️ This ODU supports 2.5 Gigabit Ethernet.');
         } else if (totalMb < 200) {
-            ramNote = E('div', { 'style': 'margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.05);color:#888;font-size:0.82em' }, '\u2139 This ODU supports 1 Gigabit Ethernet.');
+            ramNote = E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(255,255,255,0.05);color:#94a3b8;' }, 'ℹ️ This ODU supports 1 Gigabit Ethernet.');
         }
     }
     var content = E('div', {}, [
-        gaugeWithLabel(data.odu_mem_pct, color, 130, pctDisplay, usedMb != null ? usedMb + ' MB' : null),
+        gaugeWithLabel(data.odu_mem_pct, color, 120, pctDisplay, usedMb != null ? usedMb + ' MB' : null),
         statLine('Physical Total', totalMb != null ? totalMb + ' MB' : 'NA'),
         statLine('Used', usedMb != null ? usedMb + ' MB' : 'NA'),
         statLine('Free', freeMb != null ? freeMb + ' MB' : 'NA'),
@@ -606,16 +659,16 @@ function memGaugePanel(data) {
         subheading('Usage History (5 min)'),
         sparkline(memHistory, color)
     ]);
-    return panel('Memory', content);
+    return panel('Memory (RAM)', content, '🧠');
 }
 
 function cpuLoadBar(label, pct) {
     var v = parseFloat(pct);
     var display = isNaN(v) ? 'NA' : v.toFixed(1) + '%';
     var color = usagePctColor(label === 'Idle' ? (100 - (isNaN(v) ? 0 : v)) : pct);
-    return E('div', { 'style': 'margin-bottom:14px' }, [
-        E('div', { 'style': 'display:flex;justify-content:space-between' }, [
-            E('span', { 'style': 'color:#999' }, label),
+    return E('div', { 'style': 'margin-bottom:10px;' }, [
+        E('div', { 'style': 'display:flex;justify-content:space-between;font-size:0.85em;margin-bottom:3px;' }, [
+            E('span', { 'style': 'color:#94a3b8;' }, label),
             E('span', { 'style': 'font-weight:700;color:' + color }, display)
         ]),
         usageBar(isNaN(v) ? 0 : v, color)
@@ -624,25 +677,26 @@ function cpuLoadBar(label, pct) {
 
 function cpuDetailPanel(data) {
     var content = E('div', {}, [
-        cpuLoadBar('Idle', data.odu_cpu_idle),
-        cpuLoadBar('User', data.odu_cpu_user),
-        cpuLoadBar('Nice', data.odu_cpu_nice),
-        cpuLoadBar('System', data.odu_cpu_system),
+        cpuLoadBar('Idle (Available)', data.odu_cpu_idle),
+        cpuLoadBar('User Space', data.odu_cpu_user),
+        cpuLoadBar('System Kernel', data.odu_cpu_system),
         cpuLoadBar('I/O Wait', data.odu_cpu_iowait),
-        cpuLoadBar('IRQ', data.odu_cpu_irq),
-        cpuLoadBar('Soft IRQ', data.odu_cpu_softirq),
-        statLine('System Tasks', (data.odu_tasks_running !== '--' ? data.odu_tasks_running : 'NA') + ' / ' + (data.odu_tasks_total !== '--' ? data.odu_tasks_total : 'NA')),
-        statLine('Context Switches / s', data.odu_ctxt_rate !== '--' ? data.odu_ctxt_rate + ' /s' : 'NA'),
-        statLine('Hardware Interrupts / s', data.odu_intr_rate !== '--' ? data.odu_intr_rate + ' /s' : 'NA'),
-        statLine('Active Connections', (data.odu_conntrack_count !== '--' && data.odu_conntrack_max !== '--') ? (data.odu_conntrack_count + ' / ' + data.odu_conntrack_max) : 'NA')
+        cpuLoadBar('Hardware IRQ', data.odu_cpu_irq),
+        cpuLoadBar('Software IRQ', data.odu_cpu_softirq),
+        E('div', { 'style': 'margin-top:12px;border-top:1px solid rgba(255,255,255,0.08);padding-top:6px;' }, [
+            statLine('System Tasks', (data.odu_tasks_running !== '--' ? data.odu_tasks_running : 'NA') + ' / ' + (data.odu_tasks_total !== '--' ? data.odu_tasks_total : 'NA')),
+            statLine('Context Switches / s', data.odu_ctxt_rate !== '--' ? data.odu_ctxt_rate + ' /s' : 'NA'),
+            statLine('Hardware Interrupts / s', data.odu_intr_rate !== '--' ? data.odu_intr_rate + ' /s' : 'NA'),
+            statLine('Active Connections', (data.odu_conntrack_count !== '--' && data.odu_conntrack_max !== '--') ? (data.odu_conntrack_count + ' / ' + data.odu_conntrack_max) : 'NA')
+        ])
     ]);
-    return panel('CPU Detailed Load', content);
+    return panel('CPU Detailed Breakdown', content, '📊');
 }
 
 function thermalSection(data) {
     var zones = Array.isArray(data.thermal_zones) ? data.thermal_zones : [];
     if (!zones.length) {
-        return panel('ODU Temperature', E('p', { 'style': 'color:#888' }, 'No temperature data available (check Settings).'));
+        return panel('Internal Thermal Sensors', E('p', { 'style': 'color:#64748b;font-size:0.9em;padding:8px 0;' }, 'No temperature telemetry available (verify Settings).'), '🌡️');
     }
     var maxZone = zones.reduce(function (a, b) {
         return (parseFloat(b.temp_c) > parseFloat(a.temp_c)) ? b : a;
@@ -650,33 +704,37 @@ function thermalSection(data) {
     var half = Math.ceil(zones.length / 2);
     var colA = zones.slice(0, half);
     var colB = zones.slice(half);
+
     function buildColumn(list) {
         var rows = list.map(function (z) {
             var label = friendlySensorName(z.type, z.zone);
-            return paramRow(label, z.temp_c + ' \u00b0C', tempColor(z.temp_c));
+            return paramRow(label, z.temp_c + ' °C', tempColor(z.temp_c));
         });
-        return E('table', { 'style': 'width:100%;border-collapse:collapse;font-size:0.85em' }, rows);
+        return E('table', { 'class': 'jodu-table' }, rows);
     }
-    var table = E('div', { 'id': 'jodu5164x-thermal-scroll', 'style': 'display:flex;gap:20px;flex-wrap:wrap' }, [
+    var table = E('div', { 'id': 'jodu5164x-thermal-scroll', 'style': 'display:flex;gap:20px;flex-wrap:wrap;' }, [
         E('div', { 'style': 'flex:1;min-width:220px' }, buildColumn(colA)),
         E('div', { 'style': 'flex:1;min-width:220px' }, buildColumn(colB))
     ]);
     var maxLabel = friendlySensorName(maxZone.type, maxZone.zone);
-    var header = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px' }, [
-        E('span', { 'style': 'color:#888;font-size:0.8em' }, zones.length + ' sensors'),
-        E('span', { 'style': 'font-weight:700;color:' + tempColor(maxZone.temp_c) }, 'Max: ' + maxZone.temp_c + ' \u00b0C (' + maxLabel + ')')
+    var maxColor = tempColor(maxZone.temp_c);
+    var header = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:6px 10px;background:rgba(255,255,255,0.02);border-radius:8px;' }, [
+        E('span', { 'style': 'color:#94a3b8;font-size:0.85em;' }, zones.length + ' active sensors detected'),
+        E('span', { 'class': 'jodu-badge', 'style': 'background:' + maxColor + '20;color:' + maxColor + ';border:1px solid ' + maxColor + '50;font-weight:700;' }, '🔥 Hottest: ' + maxZone.temp_c + ' °C (' + maxLabel + ')')
     ]);
-    return panel('ODU Temperature', E('div', {}, [header, table]));
+    return panel('Internal Thermal Sensors', E('div', {}, [header, table]), '🌡️');
 }
 
 function renderDashboard(data) {
     var online = data.server_link === 'ONLINE';
     var disabled = data.server_link === 'DISABLED';
+
     if (disabled) {
-        return E('div', { 'style': 'text-align:center;padding:60px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:12px;' }, [
-            E('div', { 'style': 'font-size:2em;margin-bottom:10px' }, '\u23f8'),
-            E('h3', { 'style': 'margin:0 0 8px' }, 'Monitoring Paused'),
-            E('p', { 'style': 'color:#888;max-width:480px;margin:0 auto' }, 'This package has released its session so you can log into the ODU\u2019s own WebUI directly. Toggle "Monitoring: OFF" back to ON when you\u2019re done.')
+        return E('div', { 'class': 'jodu-paused-box' }, [
+            E('div', { 'style': 'font-size:2.6em;margin-bottom:12px;' }, '⏸️'),
+            E('h3', { 'style': 'margin:0 0 8px;font-size:1.3em;color:#f8fafc;' }, 'ODU Monitoring Paused'),
+            E('p', { 'style': 'color:#94a3b8;max-width:480px;margin:0 auto;line-height:1.5;font-size:0.92em;' },
+                'The session has been freed so you can log into the native Sercomm ODU WebUI without single-login conflicts. Click "Monitoring: OFF" above when ready to resume live polling.')
         ]);
     }
     if (rebootState.inProgress) {
@@ -685,11 +743,15 @@ function renderDashboard(data) {
         } else if (rebootState.sawOffline) {
             rebootState.inProgress = false;
             rebootState.sawOffline = false;
-            notify('ODU is back online. Reloading page...', 'info', 3000);
+            notify('ODU is back online! Refreshing...', 'info', 3000);
             setTimeout(function () { window.location.reload(); }, 1500);
         }
     }
-    var rebootBanner = rebootState.inProgress ? E('div', { 'style': 'margin-bottom:16px;padding:10px 14px;border-radius:6px;background:rgba(91,141,239,0.12);color:#5b8def;font-weight:600;text-align:center' }, '\u23f3 ODU is rebooting \u2014 please wait, this can take a minute or two...') : '';
+    var rebootBanner = rebootState.inProgress ? E('div', { 'class': 'jodu-alert-banner' }, [
+        E('span', { 'style': 'margin-right:8px;' }, '🔄'),
+        'ODU is rebooting — please wait, connection will restore automatically...'
+    ]) : '';
+
     if (!online) {
         var diagMessages = [];
         if (data.webui_message) diagMessages.push(data.webui_message);
@@ -698,11 +760,12 @@ function renderDashboard(data) {
         return E('div', {}, [
             rebootBanner,
             summaryRow(data, false),
-            E('div', { 'style': 'display:flex;flex-direction:column;gap:8px' }, diagMessages.map(function (msg) {
-                return E('p', { 'class': 'alert-message warning' }, msg);
+            E('div', { 'style': 'display:flex;flex-direction:column;gap:10px;margin-top:16px;' }, diagMessages.map(function (msg) {
+                return E('div', { 'class': 'alert-message warning' }, msg);
             }))
         ]);
     }
+
     var merged = Object.assign({}, data, {
         'scc_band': data.SCC_BAND,
         'scc_bw': data.SCC_BW,
@@ -715,45 +778,54 @@ function renderDashboard(data) {
         'scc_rsrq': data.SCC_RSRQ,
         'scc_sinr': data.SCC_SINR
     });
+
     var noSim = data.sim_status === 'missing';
-    var primaryCellContent = noSim ? E('div', { 'style': 'padding:20px 0;text-align:center;color:#888' }, [
-        E('div', { 'style': 'font-size:1.6em;margin-bottom:6px' }, '\u{1F4F3}'),
-        E('p', { 'style': 'margin:0;color:#ddd;font-weight:600' }, 'No SIM Detected'),
-        E('p', { 'style': 'margin:4px 0 0' }, 'Please Insert pSIM Or eSIM On Your ODU')
+    var primaryCellContent = noSim ? E('div', { 'class': 'jodu-idle-panel' }, [
+        E('div', { 'style': 'font-size:2.2em;margin-bottom:8px;' }, '📱'),
+        E('h4', { 'style': 'margin:0;color:#f87171;font-weight:700;' }, 'No SIM Card Detected'),
+        E('p', { 'style': 'margin:4px 0 0;color:#94a3b8;font-size:0.88em;' }, 'Please insert a pSIM or activate eSIM profile on your ODU.')
     ]) : cellTable('', merged);
 
-    var cellPanels = E('div', { 'style': 'display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px' }, [
-        panel('Cellular Parameters (Primary Cell)', primaryCellContent),
+    var cellPanels = E('div', { 'class': 'jodu-grid-2col' }, [
+        panel('Cellular Parameters (Primary Cell)', primaryCellContent, '📡'),
         secondaryCellPanel(merged)
     ]);
-    var managementColumn = E('div', { 'style': 'display:flex;flex-direction:column;gap:16px;flex:2;min-width:420px' }, [
+
+    var managementColumn = E('div', { 'class': 'jodu-grid-2col' }, [
         ethSection(data),
         nearbyCellsSection(data)
     ]);
-    var bottomPanels = E('div', { 'style': 'display:flex;gap:16px;flex-wrap:wrap' }, [
-        managementColumn,
+
+    var telemetryGrid = E('div', { 'class': 'jodu-grid-3col' }, [
         cpuGaugePanel(data),
         memGaugePanel(data),
-        dataUsageSection(data),
         cpuDetailPanel(data)
     ]);
-    var telnetNotice = (data.telnet_status && data.telnet_status !== 'ok') ? E('div', { 'style': 'margin-bottom:16px;padding:8px 14px;border-radius:6px;background:rgba(241,196,15,0.1);color:' + COLOR_OK + ';font-size:0.85em' }, '\u26a0 ' + (data.telnet_message || 'Telnet issue \u2014 CPU/Temperature/Nearby Cells data unavailable.')) : '';
 
-    return E('div', {}, [
+    var bottomPanels = E('div', { 'class': 'jodu-grid-2col' }, [
+        dataUsageSection(data),
+        thermalSection(data)
+    ]);
+
+    var telnetNotice = (data.telnet_status && data.telnet_status !== 'ok') ? E('div', { 'class': 'alert-message warning', 'style': 'margin-bottom:16px;' },
+        '⚠️ Telnet Notice: ' + (data.telnet_message || 'Telnet telemetry paused — check credentials in Settings.')) : '';
+
+    return E('div', { 'class': 'jodu-container' }, [
         rebootBanner,
         telnetNotice,
         summaryRow(data, true),
         cellPanels,
-        bottomPanels,
-        E('div', { 'style': 'margin-top:16px' }, thermalSection(data))
+        managementColumn,
+        telemetryGrid,
+        bottomPanels
     ]);
 }
 
 function loadingPlaceholder() {
-    return E('div', { 'style': 'text-align:center;padding:60px 20px;color:#888' }, [
-        E('div', { 'style': 'width:36px;height:36px;margin:0 auto 14px;border:3px solid #333;border-top-color:#5b8def;border-radius:50%;animation:jodu5164x-spin 0.8s linear infinite' }),
-        E('style', {}, '@keyframes jodu5164x-spin { to { transform: rotate(360deg); } }'),
-        E('p', { 'style': 'margin:0' }, 'Loading ODU status...')
+    return E('div', { 'class': 'jodu-loading-box' }, [
+        E('div', { 'class': 'jodu-spinner' }),
+        E('h4', { 'style': 'margin:14px 0 4px;color:#f8fafc;font-weight:600;' }, 'Connecting to Sercomm 5G ODU...'),
+        E('p', { 'style': 'margin:0;color:#64748b;font-size:0.85em;' }, 'Retrieving real-time radio metrics and hardware telemetry')
     ]);
 }
 
@@ -781,7 +853,7 @@ return view.extend({
 
         function field(label, inputEl) {
             return E('div', { 'style': 'margin-bottom:14px' }, [
-                E('label', { 'style': 'display:block;margin-bottom:5px;color:#aaa;font-size:0.85em' }, label),
+                E('label', { 'style': 'display:block;margin-bottom:5px;color:#94a3b8;font-size:0.85em;font-weight:600;' }, label),
                 inputEl
             ]);
         }
@@ -818,13 +890,13 @@ return view.extend({
                 var intervalInput = E('select', { 'class': 'cbi-input-select', 'style': inputStyle }, intervalOptions);
                 intervalInput.value = String(pollInterval);
 
-                var errorMsg = E('div', { 'style': 'color:#e74c3c;font-size:0.85em;margin-top:10px;display:none' });
-                var scheduleRow = E('div', { 'style': 'display:flex;align-items:center;gap:8px;margin-bottom:14px' }, [
+                var errorMsg = E('div', { 'style': 'color:#ef4444;font-size:0.85em;margin-top:10px;display:none' });
+                var scheduleRow = E('div', { 'style': 'display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:6px;' }, [
                     rebootEnabledInput,
-                    E('span', { 'style': 'color:#aaa;font-size:0.9em' }, 'Enable daily scheduled reboot')
+                    E('span', { 'style': 'color:#f8fafc;font-size:0.9em;' }, 'Enable daily scheduled reboot')
                 ]);
 
-                ui.showModal('ODU Configuration', [
+                ui.showModal('⚙️ ODU Configuration & Settings', [
                     field('ODU IP Address', hostInput),
                     field('WebUI Username', userInput),
                     field('WebUI Password', passInput),
@@ -883,8 +955,7 @@ return view.extend({
         triggerRefresh = refreshNow;
 
         var toggleBtn = E('button', {
-            'class': 'btn',
-            'style': 'position:absolute;left:0;top:50%;transform:translateY(-50%)',
+            'class': 'btn jodu-top-btn',
             'click': ui.createHandlerFn(this, function () {
                 var willEnable = toggleBtn.getAttribute('data-state') !== 'on';
                 return fs.exec_direct('/usr/libexec/jodu5164x-toggle.sh', [willEnable ? '1' : '0']).then(function () {
@@ -898,13 +969,16 @@ return view.extend({
         function updateToggleBtn(st) {
             var isOn = st.server_link !== 'DISABLED';
             toggleBtn.setAttribute('data-state', isOn ? 'on' : 'off');
-            toggleBtn.textContent = isOn ? 'Monitoring: ON' : 'Monitoring: OFF';
+            dom.content(toggleBtn, [
+                isOn ? E('span', { 'class': 'jodu-pulse-dot' }) : '⏸️ ',
+                isOn ? 'Monitoring: ON' : 'Monitoring: OFF'
+            ]);
             toggleBtn.style.color = isOn ? COLOR_GOOD : COLOR_POOR;
+            toggleBtn.style.borderColor = isOn ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)';
         }
 
         var refreshBtn = E('button', {
-            'class': 'btn',
-            'style': 'position:absolute;right:88px;top:50%;transform:translateY(-50%)',
+            'class': 'btn jodu-top-btn',
             'click': ui.createHandlerFn(this, function () {
                 refreshBtn.textContent = '🔄 ...';
                 return refreshNow().then(function () {
@@ -914,22 +988,86 @@ return view.extend({
         }, '🔄 Refresh');
 
         var settingsBtn = E('button', {
-            'class': 'btn',
-            'style': 'position:absolute;right:0;top:50%;transform:translateY(-50%)',
+            'class': 'btn jodu-top-btn',
             'click': ui.createHandlerFn(this, openSettingsModal)
         }, '⚙️ Settings');
+
+        // Scoped Stylesheet for Modern Aesthetics
+        var styleNode = E('style', {}, [
+            '.jodu-wrapper { background:radial-gradient(circle at 15% 15%, rgba(14, 165, 233, 0.08) 0%, transparent 45%), radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.08) 0%, transparent 45%), #0a0f1d; color:#e2e8f0; border-radius:18px; padding:22px 24px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 12px 40px rgba(0,0,0,0.35); box-sizing:border-box; }',
+            '.jodu-top-bar { display:flex;justify-content:space-between;align-items:center;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:20px;flex-wrap:wrap;gap:14px; }',
+            '.jodu-title-block h2 { margin:0;font-size:1.55em;font-weight:800;letter-spacing:0.02em;background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block; }',
+            '.jodu-subtitle { font-size:0.75em;letter-spacing:0.12em;text-transform:uppercase;color:#64748b;margin-top:2px;font-weight:600; }',
+            '.jodu-actions { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }',
+            '.jodu-top-btn { font-size:0.85em;padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);transition:all 0.2s ease;font-weight:600;color:#f1f5f9;cursor:pointer; }',
+            '.jodu-top-btn:hover { background:rgba(255,255,255,0.12);transform:translateY(-1px); }',
+            '.jodu-pulse-dot { display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 rgba(16,185,129,0.6);animation:jodu-pulse 2s infinite;margin-right:6px;vertical-align:middle; }',
+            '@keyframes jodu-pulse { 0% { box-shadow:0 0 0 0 rgba(16,185,129,0.7); } 70% { box-shadow:0 0 0 8px rgba(16,185,129,0); } 100% { box-shadow:0 0 0 0 rgba(16,185,129,0); } }',
+            '.jodu-sum-row { display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px; }',
+            '.jodu-sum-card { flex:1;min-width:160px;padding:18px 16px;text-align:center;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.12);transition:transform 0.25s ease, border-color 0.25s ease; }',
+            '.jodu-sum-card:hover { transform:translateY(-2px);border-color:rgba(255,255,255,0.16); }',
+            '.jodu-sum-icon { font-size:1.5em;margin-bottom:4px; }',
+            '.jodu-sum-val { font-size:1.6em;font-weight:800;margin:4px 0 2px;letter-spacing:-0.02em; }',
+            '.jodu-sum-sub { font-size:0.78em;color:#94a3b8;font-weight:500;margin-bottom:6px; }',
+            '.jodu-sum-lbl { font-size:0.7em;letter-spacing:0.1em;text-transform:uppercase;color:#64748b;font-weight:700; }',
+            '.jodu-grid-2col { display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:16px;margin-bottom:16px; }',
+            '.jodu-grid-3col { display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:16px;margin-bottom:16px; }',
+            '.jodu-card { background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.12);transition:transform 0.2s ease; }',
+            '.jodu-card:hover { border-color:rgba(255,255,255,0.14); }',
+            '.jodu-card-hdr { display:flex;align-items:center;gap:8px;padding:12px 16px;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.06); }',
+            '.jodu-card-icon { font-size:1.15em; }',
+            '.jodu-card-title { font-size:0.95em;font-weight:700;color:#f8fafc;letter-spacing:0.02em; }',
+            '.jodu-card-body { padding:16px; }',
+            '.jodu-table { width:100%;border-collapse:collapse;font-size:0.88em; }',
+            '.jodu-tr { border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.15s ease; }',
+            '.jodu-tr:hover { background:rgba(255,255,255,0.02); }',
+            '.jodu-tr:last-child { border-bottom:none; }',
+            '.jodu-th-tr { border-bottom:1px solid rgba(255,255,255,0.1); }',
+            '.jodu-th { text-align:left;padding:6px 8px;font-size:0.78em;color:#64748b;font-weight:700;letter-spacing:0.04em;text-transform:uppercase; }',
+            '.jodu-td-lbl { padding:8px 8px;color:#94a3b8; }',
+            '.jodu-td-val { padding:8px 8px;text-align:right;color:#f8fafc; }',
+            '.jodu-td-val.jodu-has-color { font-weight:600; }',
+            '.jodu-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle; }',
+            '.jodu-badge { font-size:0.75em;padding:3px 8px;border-radius:6px;font-weight:600;display:inline-block; }',
+            '.jodu-btn-sm { font-size:0.78em;padding:4px 10px;border-radius:6px;font-weight:600; }',
+            '.jodu-gauge-center { position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center; }',
+            '.jodu-gauge-val { font-size:1.65em;font-weight:800;line-height:1;letter-spacing:-0.02em; }',
+            '.jodu-gauge-sub { font-size:0.75em;color:#64748b;margin-top:4px;font-weight:600; }',
+            '.jodu-stat-row { display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.86em; }',
+            '.jodu-stat-lbl { color:#94a3b8; }',
+            '.jodu-stat-val { font-weight:600;color:#f8fafc; }',
+            '.jodu-subheading { text-align:center;color:#64748b;font-size:0.72em;letter-spacing:0.1em;text-transform:uppercase;margin:14px 0 6px;font-weight:700; }',
+            '.jodu-bar-track { background:rgba(255,255,255,0.08);border-radius:6px;height:8px;overflow:hidden; }',
+            '.jodu-bar-fill { height:100%;border-radius:6px;transition:width 0.35s ease; }',
+            '.jodu-alert-box { margin-top:10px;padding:8px 12px;border-radius:8px;font-size:0.82em;line-height:1.4;font-weight:500; }',
+            '.jodu-alert-banner { margin-bottom:16px;padding:12px;border-radius:10px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;font-weight:600;text-align:center; }',
+            '.jodu-paused-box { text-align:center;padding:55px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:14px; }',
+            '.jodu-idle-panel { padding:24px 0;text-align:center;color:#888; }',
+            '.jodu-loading-box { text-align:center;padding:70px 20px; }',
+            '.jodu-spinner { width:38px;height:38px;margin:0 auto;border:3px solid rgba(255,255,255,0.1);border-top-color:#38bdf8;border-radius:50%;animation:jodu-spin 0.8s linear infinite; }',
+            '@keyframes jodu-spin { to { transform:rotate(360deg); } }'
+        ]);
+
+        var topBar = E('div', { 'class': 'jodu-top-bar' }, [
+            E('div', { 'class': 'jodu-title-block' }, [
+                E('h2', {}, 'JODU51641 / JODU51642 Status Dashboard'),
+                E('div', { 'class': 'jodu-subtitle' }, 'Real-Time Sercomm 5G ODU Monitoring & Telemetry')
+            ]),
+            E('div', { 'class': 'jodu-actions' }, [
+                toggleBtn,
+                refreshBtn,
+                settingsBtn
+            ])
+        ]);
 
         refreshNow();
 
         return E('div', { 'class': 'cbi-map' }, [
-            E('div', { 'style': 'position:relative;padding:12px 0 20px;text-align:center' }, [
-                toggleBtn,
-                refreshBtn,
-                settingsBtn,
-                E('h2', { 'style': 'margin:0;letter-spacing:0.03em;background:linear-gradient(90deg,#5b8def,#8f6ae8);-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block' }, 'JODU51641/JODU51642 Status Dashboard'),
-                E('div', { 'style': 'font-size:0.72em;letter-spacing:0.18em;text-transform:uppercase;color:#777;margin-top:4px' }, '5G ODU Real-Time Monitoring')
-            ]),
-            container
+            styleNode,
+            E('div', { 'class': 'jodu-wrapper' }, [
+                topBar,
+                container
+            ])
         ]);
     },
 
