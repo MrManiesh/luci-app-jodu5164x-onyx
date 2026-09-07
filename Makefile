@@ -5,8 +5,8 @@ LUCI_DEPENDS:=+luci-base +curl +openssl-util +telnet-bsd +luci-compat
 LUCI_PKGARCH:=all
 
 PKG_NAME:=luci-app-jodu5164x-status
-PKG_VERSION:=2.0.0
-PKG_RELEASE:=2
+PKG_VERSION:=2.1.0
+PKG_RELEASE:=1
 PKG_LICENSE:=GPL-3.0
 PKG_MAINTAINER:=Manish Matwa Choudhary
 
