@@ -88,7 +88,6 @@ Originally created and conceptualized by **[Anish (@anishthevictorious)](https:/
 - **Settings Modal**: Configure ODU IP address, WebUI credentials, Telnet port/password, polling interval (1s to 10s), and automated daily scheduled reboot.
 - **CLI Diagnostics Tool**: Includes `/usr/libexec/jodu5164x-diag.sh <cmd>` for fast command-line diagnostics over SSH (`cell_location`, `signal`, `band`, `nearby`, etc.).
 
-```
 
 1. **Dual-Pipeline Telemetry**:
    - **Native WebUI HTTP API**: Queries the ODU's built-in web services using HMAC-SHA256 challenge-response session authentication for Primary/Secondary cell parameters, LAN status, and traffic data.
