@@ -4,7 +4,7 @@
 
 ### Real-Time 5G Dashboard for Sercomm JODU5164x ODUs (JODU51641 / JODU51642) on OpenWrt
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-status/releases)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-status/releases)
 [![OpenWrt](https://img.shields.io/badge/OpenWrt-23.05%20%7C%2024.10-success.svg)](https://openwrt.org)
 [![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-Compatible-success.svg)](https://immortalwrt.org)
 [![Telegram](https://img.shields.io/badge/Telegram-@Zeetron-2CA5E0?logo=telegram&logoColor=white)](https://t.me/Zeetron)
