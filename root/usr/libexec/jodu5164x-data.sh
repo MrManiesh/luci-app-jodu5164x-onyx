@@ -62,6 +62,71 @@ if [ "$ENABLED" = "0" ]; then
     exit 0
 fi
 
+# -----------------------------------------------------------------------------
+# 2. Parse Requested Active Widgets ($1) & On-Demand Flags
+# -----------------------------------------------------------------------------
+REQ_WIDGETS="$1"
+
+if [ -z "$REQ_WIDGETS" ] || [ "$REQ_WIDGETS" = "all" ]; then
+    WANT_PRIMARY=1
+    WANT_SECONDARY=1
+    WANT_LAN=1
+    WANT_DATA=1
+    WANT_NEARBY=1
+    WANT_LOC=1
+    WANT_THERMAL=1
+    WANT_CPU=1
+    WANT_MEM=1
+    WANT_SYS=1
+else
+    WANT_PRIMARY=0
+    WANT_SECONDARY=0
+    WANT_LAN=0
+    WANT_DATA=0
+    WANT_NEARBY=0
+    WANT_LOC=0
+    WANT_THERMAL=0
+    WANT_CPU=0
+    WANT_MEM=0
+    WANT_SYS=0
+
+    case ",${REQ_WIDGETS}," in
+        *,summary,*|*,primary_cell,*|*,aiming,*) WANT_PRIMARY=1 ;;
+    esac
+    case ",${REQ_WIDGETS}," in
+        *,secondary_cell,*|*,aiming,*) WANT_SECONDARY=1 ;;
+    esac
+    case ",${REQ_WIDGETS}," in
+        *,eth_mgmt,*|*,summary,*) WANT_LAN=1 ;;
+    esac
+    case ",${REQ_WIDGETS}," in
+        *,data_usage,*) WANT_DATA=1 ;;
+    esac
+    case ",${REQ_WIDGETS}," in
+        *,nearby_cells,*) WANT_NEARBY=1 ;;
+    esac
+    case ",${REQ_WIDGETS}," in
+        *,primary_cell,*|*,aiming,*) WANT_LOC=1 ;;
+    esac
+    case ",${REQ_WIDGETS}," in
+        *,thermal,*) WANT_THERMAL=1 ;;
+    esac
+    case ",${REQ_WIDGETS}," in
+        *,cpu_gauge,*|*,cpu_detail,*) WANT_CPU=1 ;;
+    esac
+    case ",${REQ_WIDGETS}," in
+        *,memory,*) WANT_MEM=1 ;;
+    esac
+    case ",${REQ_WIDGETS}," in
+        *,cpu_gauge,*|*,cpu_detail,*|*,eth_mgmt,*) WANT_SYS=1 ;;
+    esac
+fi
+
+# Notify background telnet updater daemon of actively needed features
+NEED_FILE="/tmp/jodu5164x_needed_features"
+printf 'TS=%s\nNEARBY=%s\nTHERMAL=%s\nCPU=%s\nMEM=%s\nSYS=%s\n' \
+    "$(date +%s)" "$WANT_NEARBY" "$WANT_THERMAL" "$WANT_CPU" "$WANT_MEM" "$WANT_SYS" > "$NEED_FILE" 2>/dev/null
+
 # Secret encryption key required by Sercomm WebUI challenge protocol
 ENC_KEY='$1$SERCOMM$'
 COOKIE_JAR="/tmp/jodu5164x_cookie.txt"
@@ -424,111 +489,172 @@ if [ ! -s "$COOKIE_JAR" ]; then
     do_login || { emit_offline_diagnosis; exit 1; }
 fi
 
-PRIMARY=$(fetch_cell_json "network_status_cell_parameters.json")
-
-# If session expired, response is empty or error page; auto re-login once
-if [ -z "$PRIMARY" ] || ! printf '%s' "$PRIMARY" | grep -qE '"signal_strength"|"operating_mode"|"band"|"nr_earcn"'; then
-    do_login || { emit_offline_diagnosis; exit 1; }
+PRIMARY=""
+if [ "$WANT_PRIMARY" = "1" ] || [ "$WANT_SECONDARY" = "1" ] || [ "$WANT_LAN" = "1" ] || [ "$WANT_DATA" = "1" ]; then
     PRIMARY=$(fetch_cell_json "network_status_cell_parameters.json")
+
+    # If session expired, response is empty or error page; auto re-login once
+    if [ -z "$PRIMARY" ] || ! printf '%s' "$PRIMARY" | grep -qE '"signal_strength"|"operating_mode"|"band"|"nr_earcn"'; then
+        do_login || { emit_offline_diagnosis; exit 1; }
+        PRIMARY=$(fetch_cell_json "network_status_cell_parameters.json")
+    fi
+
+    if [ -z "$PRIMARY" ]; then
+        WEBUI_STATUS="fetch_failed"
+        emit_offline_diagnosis
+        exit 1
+    fi
 fi
 
-if [ -z "$PRIMARY" ]; then
-    WEBUI_STATUS="fetch_failed"
-    emit_offline_diagnosis
-    exit 1
-fi
+# Fetch secondary (Carrier Aggregation), LAN port, and data volume JSONs only when requested
+SECONDARY=""
+[ "$WANT_SECONDARY" = "1" ] && SECONDARY=$(fetch_cell_json "network_status_secondary_cell_parameters.json")
 
-# Fetch secondary (Carrier Aggregation), LAN port, and data volume JSONs
-SECONDARY=$(fetch_cell_json "network_status_secondary_cell_parameters.json")
-LAN=$(fetch_cell_json "network_status_lan.json")
-DEVICE_DATA=$(fetch_cell_json "network_status_device_data.json")
+LAN=""
+[ "$WANT_LAN" = "1" ] && LAN=$(fetch_cell_json "network_status_lan.json")
+
+DEVICE_DATA=""
+[ "$WANT_DATA" = "1" ] && DEVICE_DATA=$(fetch_cell_json "network_status_device_data.json")
 
 # -----------------------------------------------------------------------------
-# 7. Step 2: Extract & Calculate Telemetry Metrics
+# 7. Step 2: Extract & Calculate Telemetry Metrics (On-Demand)
 # -----------------------------------------------------------------------------
 SYS_RAW=$(read_sys_cache)
 SYS_RAW=$(printf '%s' "$SYS_RAW" | tr -d '\r')
 
 # Thermal Telemetry
-THERMAL_JSON=$(build_thermal_json "$SYS_RAW")
+if [ "$WANT_THERMAL" = "1" ]; then
+    THERMAL_JSON=$(build_thermal_json "$SYS_RAW")
+else
+    THERMAL_JSON="[]"
+fi
 
-# Nearby Cell Scanning
-NEARBY_RAW=$(extract_block_lines "$SYS_RAW" "NEARBY")
-NEARBY_CELLS_JSON=$(build_nearby_cells_json "$NEARBY_RAW")
-
-# Cell Lock Configuration
-LOCKCFG_RAW=$(extract_block_lines "$SYS_RAW" "LOCKCFG")
-CELL_LOCK_STATUS=$(extract_lock_status "$LOCKCFG_RAW")
+# Nearby Cell Scanning & Cell Lock Configuration
+if [ "$WANT_NEARBY" = "1" ]; then
+    NEARBY_RAW=$(extract_block_lines "$SYS_RAW" "NEARBY")
+    NEARBY_CELLS_JSON=$(build_nearby_cells_json "$NEARBY_RAW")
+    LOCKCFG_RAW=$(extract_block_lines "$SYS_RAW" "LOCKCFG")
+    CELL_LOCK_STATUS=$(extract_lock_status "$LOCKCFG_RAW")
+else
+    NEARBY_RAW=""
+    NEARBY_CELLS_JSON="[]"
+    CELL_LOCK_STATUS="UNLOCK"
+fi
 CELL_LOCK_STATUS_ESC=$(json_escape "$CELL_LOCK_STATUS")
 
 # Cell Location & Tower Identifiers (cricli cell_location)
-LOC_RAW=$(extract_block_lines "$SYS_RAW" "LOC")
-CELL_LOC=$(extract_cell_location "$LOC_RAW")
-TAC=$(printf '%s' "$CELL_LOC" | cut -d'|' -f1)
-GLOBAL_CELL_ID=$(printf '%s' "$CELL_LOC" | cut -d'|' -f2)
+if [ "$WANT_LOC" = "1" ]; then
+    LOC_RAW=$(extract_block_lines "$SYS_RAW" "LOC")
+    CELL_LOC=$(extract_cell_location "$LOC_RAW")
+    TAC=$(printf '%s' "$CELL_LOC" | cut -d'|' -f1)
+    GLOBAL_CELL_ID=$(printf '%s' "$CELL_LOC" | cut -d'|' -f2)
+    # If nearby was not extracted above, extract it now for timing advance
+    [ -z "$NEARBY_RAW" ] && NEARBY_RAW=$(extract_block_lines "$SYS_RAW" "NEARBY")
+    TIMING_ADVANCE=$(printf '%s\n' "$NEARBY_RAW" | sed -n 's/^[[:space:]]*TIMING ADVANCE:[[:space:]]*//p' | head -1 | tr -d '\r')
+else
+    TAC="--"
+    GLOBAL_CELL_ID="--"
+    TIMING_ADVANCE="--"
+fi
 [ -z "$TAC" ] && TAC="--"
 [ -z "$GLOBAL_CELL_ID" ] && GLOBAL_CELL_ID="--"
+[ -z "$TIMING_ADVANCE" ] && TIMING_ADVANCE="--"
 TAC_ESC=$(json_escape "$TAC")
 GLOBAL_CELL_ID_ESC=$(json_escape "$GLOBAL_CELL_ID")
 
-# Tower Distance & Timing Advance (from atcli 'AT+BNRCELLH=?')
-TIMING_ADVANCE=$(printf '%s\n' "$NEARBY_RAW" | sed -n 's/^[[:space:]]*TIMING ADVANCE:[[:space:]]*//p' | head -1 | tr -d '\r')
-[ -z "$TIMING_ADVANCE" ] && TIMING_ADVANCE="--"
-
 # CPU State Delta Breakdown
-S1=$(extract_stat_block "$SYS_RAW" "STAT1")
-S2=$(extract_stat_block "$SYS_RAW" "STAT2")
-CPU1_LINE=$(printf '%s' "$S1" | cut -d'|' -f1)
-CPU2_LINE=$(printf '%s' "$S2" | cut -d'|' -f1)
-CTXT1=$(printf '%s' "$S1" | cut -d'|' -f2)
-CTXT2=$(printf '%s' "$S2" | cut -d'|' -f2)
-INTR1=$(printf '%s' "$S1" | cut -d'|' -f3)
-INTR2=$(printf '%s' "$S2" | cut -d'|' -f3)
-PROCS_RUNNING=$(printf '%s' "$S2" | cut -d'|' -f4)
+if [ "$WANT_CPU" = "1" ]; then
+    S1=$(extract_stat_block "$SYS_RAW" "STAT1")
+    S2=$(extract_stat_block "$SYS_RAW" "STAT2")
+    CPU1_LINE=$(printf '%s' "$S1" | cut -d'|' -f1)
+    CPU2_LINE=$(printf '%s' "$S2" | cut -d'|' -f1)
+    CTXT1=$(printf '%s' "$S1" | cut -d'|' -f2)
+    CTXT2=$(printf '%s' "$S2" | cut -d'|' -f2)
+    INTR1=$(printf '%s' "$S1" | cut -d'|' -f3)
+    INTR2=$(printf '%s' "$S2" | cut -d'|' -f3)
+    PROCS_RUNNING=$(printf '%s' "$S2" | cut -d'|' -f4)
 
-CPU_STATES=$(compute_cpu_states "$CPU1_LINE" "$CPU2_LINE")
-PCT_USER=$(printf '%s' "$CPU_STATES" | cut -d: -f1)
-PCT_NICE=$(printf '%s' "$CPU_STATES" | cut -d: -f2)
-PCT_SYSTEM=$(printf '%s' "$CPU_STATES" | cut -d: -f3)
-PCT_IDLE=$(printf '%s' "$CPU_STATES" | cut -d: -f4)
-PCT_IOWAIT=$(printf '%s' "$CPU_STATES" | cut -d: -f5)
-PCT_IRQ=$(printf '%s' "$CPU_STATES" | cut -d: -f6)
-PCT_SOFTIRQ=$(printf '%s' "$CPU_STATES" | cut -d: -f7)
-PCT_STEAL=$(printf '%s' "$CPU_STATES" | cut -d: -f8)
-CPU_PCT=$(awk -v idle="$PCT_IDLE" 'BEGIN { if (idle == "") { print ""; } else { printf "%.1f", 100 - idle; } }')
+    CPU_STATES=$(compute_cpu_states "$CPU1_LINE" "$CPU2_LINE")
+    PCT_USER=$(printf '%s' "$CPU_STATES" | cut -d: -f1)
+    PCT_NICE=$(printf '%s' "$CPU_STATES" | cut -d: -f2)
+    PCT_SYSTEM=$(printf '%s' "$CPU_STATES" | cut -d: -f3)
+    PCT_IDLE=$(printf '%s' "$CPU_STATES" | cut -d: -f4)
+    PCT_IOWAIT=$(printf '%s' "$CPU_STATES" | cut -d: -f5)
+    PCT_IRQ=$(printf '%s' "$CPU_STATES" | cut -d: -f6)
+    PCT_SOFTIRQ=$(printf '%s' "$CPU_STATES" | cut -d: -f7)
+    PCT_STEAL=$(printf '%s' "$CPU_STATES" | cut -d: -f8)
+    CPU_PCT=$(awk -v idle="$PCT_IDLE" 'BEGIN { if (idle == "") { print ""; } else { printf "%.1f", 100 - idle; } }')
 
-CTXT_RATE=$(awk -v a="$CTXT1" -v b="$CTXT2" 'BEGIN { d=b-a; if (d<0) d=0; printf "%d", d }')
-INTR_RATE=$(awk -v a="$INTR1" -v b="$INTR2" 'BEGIN { d=b-a; if (d<0) d=0; printf "%d", d }')
+    CTXT_RATE=$(awk -v a="$CTXT1" -v b="$CTXT2" 'BEGIN { d=b-a; if (d<0) d=0; printf "%d", d }')
+    INTR_RATE=$(awk -v a="$INTR1" -v b="$INTR2" 'BEGIN { d=b-a; if (d<0) d=0; printf "%d", d }')
+else
+    CPU_PCT="--"
+    PCT_USER="--"
+    PCT_NICE="--"
+    PCT_SYSTEM="--"
+    PCT_IDLE="--"
+    PCT_IOWAIT="--"
+    PCT_IRQ="--"
+    PCT_SOFTIRQ="--"
+    PCT_STEAL="--"
+    CTXT_RATE="--"
+    INTR_RATE="--"
+    PROCS_RUNNING="--"
+fi
 
 # Memory Statistics
-MEM_STATS=$(compute_mem_stats "$SYS_RAW")
-MEM_TOTAL_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f1)
-MEM_USED_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f2)
-MEM_PCT=$(printf '%s' "$MEM_STATS" | cut -d: -f3)
-MEM_FREE_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f4)
-MEM_CACHED_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f5)
-MEM_BUFFERS_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f6)
-MEM_SWAP_TOTAL_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f7)
-MEM_SWAP_USED_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f8)
+if [ "$WANT_MEM" = "1" ]; then
+    MEM_STATS=$(compute_mem_stats "$SYS_RAW")
+    MEM_TOTAL_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f1)
+    MEM_USED_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f2)
+    MEM_PCT=$(printf '%s' "$MEM_STATS" | cut -d: -f3)
+    MEM_FREE_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f4)
+    MEM_CACHED_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f5)
+    MEM_BUFFERS_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f6)
+    MEM_SWAP_TOTAL_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f7)
+    MEM_SWAP_USED_KB=$(printf '%s' "$MEM_STATS" | cut -d: -f8)
+else
+    MEM_TOTAL_KB="--"
+    MEM_USED_KB="--"
+    MEM_PCT="--"
+    MEM_FREE_KB="--"
+    MEM_CACHED_KB="--"
+    MEM_BUFFERS_KB="--"
+    MEM_SWAP_TOTAL_KB="--"
+    MEM_SWAP_USED_KB="--"
+fi
 
 # Load Averages, Tasks, Uptime, Cores, Model, and Conntrack
-LOAD_RAW=$(printf '%s' "$SYS_RAW" | sed -n 's/^LOADAVG://p')
-LOAD1=$(printf '%s' "$LOAD_RAW" | awk '{print $1}')
-LOAD5=$(printf '%s' "$LOAD_RAW" | awk '{print $2}')
-LOAD15=$(printf '%s' "$LOAD_RAW" | awk '{print $3}')
-TASKS_RAW=$(printf '%s' "$LOAD_RAW" | awk '{print $4}')
-TASKS_RUNNING=$(printf '%s' "$TASKS_RAW" | cut -d/ -f1)
-TASKS_TOTAL=$(printf '%s' "$TASKS_RAW" | cut -d/ -f2)
+if [ "$WANT_SYS" = "1" ]; then
+    LOAD_RAW=$(printf '%s' "$SYS_RAW" | sed -n 's/^LOADAVG://p')
+    LOAD1=$(printf '%s' "$LOAD_RAW" | awk '{print $1}')
+    LOAD5=$(printf '%s' "$LOAD_RAW" | awk '{print $2}')
+    LOAD15=$(printf '%s' "$LOAD_RAW" | awk '{print $3}')
+    TASKS_RAW=$(printf '%s' "$LOAD_RAW" | awk '{print $4}')
+    TASKS_RUNNING=$(printf '%s' "$TASKS_RAW" | cut -d/ -f1)
+    TASKS_TOTAL=$(printf '%s' "$TASKS_RAW" | cut -d/ -f2)
 
-UPTIME_RAW=$(printf '%s' "$SYS_RAW" | sed -n 's/^UPTIME://p')
-UPTIME_SEC=$(printf '%s' "$UPTIME_RAW" | awk '{printf "%d", $1}')
+    UPTIME_RAW=$(printf '%s' "$SYS_RAW" | sed -n 's/^UPTIME://p')
+    UPTIME_SEC=$(printf '%s' "$UPTIME_RAW" | awk '{printf "%d", $1}')
 
-CORES=$(printf '%s' "$SYS_RAW" | sed -n 's/^CORES://p')
-CPU_MODEL=$(printf '%s' "$SYS_RAW" | sed -n 's/^MODEL:[[:space:]]*//p' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    CORES=$(printf '%s' "$SYS_RAW" | sed -n 's/^CORES://p')
+    CPU_MODEL=$(printf '%s' "$SYS_RAW" | sed -n 's/^MODEL:[[:space:]]*//p' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
-CONNTRACK_RAW=$(printf '%s' "$SYS_RAW" | sed -n 's/^CONNTRACK://p')
-CONNTRACK_COUNT=$(printf '%s' "$CONNTRACK_RAW" | cut -d: -f1)
-CONNTRACK_MAX=$(printf '%s' "$CONNTRACK_RAW" | cut -d: -f2)
+    CONNTRACK_RAW=$(printf '%s' "$SYS_RAW" | sed -n 's/^CONNTRACK://p')
+    CONNTRACK_COUNT=$(printf '%s' "$CONNTRACK_RAW" | cut -d: -f1)
+    CONNTRACK_MAX=$(printf '%s' "$CONNTRACK_RAW" | cut -d: -f2)
+else
+    LOAD1="--"
+    LOAD5="--"
+    LOAD15="--"
+    TASKS_RUNNING="--"
+    TASKS_TOTAL="--"
+    UPTIME_SEC="--"
+    CORES="--"
+    CPU_MODEL="Unknown"
+    CONNTRACK_COUNT="--"
+    CONNTRACK_MAX="--"
+fi
 
 # Default any empty numeric variables to "--"
 for v in CPU_PCT PCT_USER PCT_NICE PCT_SYSTEM PCT_IDLE PCT_IOWAIT PCT_IRQ PCT_SOFTIRQ PCT_STEAL \

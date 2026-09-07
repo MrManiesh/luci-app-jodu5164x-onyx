@@ -23,6 +23,14 @@ var COLOR_PURPLE = '#8b5cf6';   // Purple 500
 var COLOR_CYAN = '#06b6d4';     // Cyan 500
 
 var rebootState = { inProgress: false, sawOffline: false };
+var aimingSession = {
+    active: false,
+    startRsrp: null,
+    peakRsrp: null,
+    peakSinr: null,
+    initialPci: null,
+    audioMuted: true
+};
 var triggerRefresh = null;
 var currentPollInterval = 3;
 
@@ -90,8 +98,20 @@ function notify(text, cls, duration) {
     return n;
 }
 
+function getActiveWidgetsArg() {
+    if (aimingSession && aimingSession.active) {
+        return 'aiming,summary,primary_cell,secondary_cell';
+    }
+    var active = [];
+    WIDGET_CATALOG.forEach(function (w) {
+        if (isWidgetVisible(w.id)) active.push(w.id);
+    });
+    return active.length ? active.join(',') : 'none';
+}
+
 function fetchStatus() {
-    return fs.exec_direct(SCRIPT_PATH, []).then(function (res) {
+    var activeArg = getActiveWidgetsArg();
+    return fs.exec_direct(SCRIPT_PATH, [activeArg]).then(function (res) {
         try {
             return JSON.parse(res);
         } catch (e) {
@@ -1395,15 +1415,6 @@ return view.extend({
                 ]);
             });
         }
-
-        var aimingSession = {
-            active: false,
-            startRsrp: null,
-            peakRsrp: null,
-            peakSinr: null,
-            initialPci: null,
-            audioMuted: true
-        };
 
         var audioCtx = null;
         function playAimingBeep(rsrp) {

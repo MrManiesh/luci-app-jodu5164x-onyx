@@ -67,6 +67,34 @@ fetch_once() {
         RUN="timeout 28 $RUN"
     fi
 
+    # Check on-demand feature requirements and client activity
+    NEED_FILE="/tmp/jodu5164x_needed_features"
+    NOW=$(date +%s)
+    NEED_NEARBY=1
+    NEED_THERMAL=1
+    NEED_CPU=1
+    NEED_MEM=1
+    NEED_SYS=1
+
+    if [ -f "$NEED_FILE" ]; then
+        . "$NEED_FILE" 2>/dev/null
+        # If no UI poll has occurred in the past 90 seconds, user has closed or navigated away.
+        # Idle to save CPU, network bandwidth, and ODU modem load.
+        if [ -n "$TS" ] && [ $((NOW - TS)) -gt 90 ]; then
+            return 0
+        fi
+        NEED_NEARBY="$NEARBY"
+        NEED_THERMAL="$THERMAL"
+        NEED_CPU="$CPU"
+        NEED_MEM="$MEM"
+        NEED_SYS="$SYS"
+
+        # If all Telnet-dependent features are disabled, skip Telnet entirely
+        if [ "$NEED_NEARBY" = "0" ] && [ "$NEED_THERMAL" = "0" ] && [ "$NEED_CPU" = "0" ] && [ "$NEED_MEM" = "0" ] && [ "$NEED_SYS" = "0" ]; then
+            return 0
+        fi
+    fi
+
     # Execute Telnet interactive stream:
     # Commands are sent as individual printf lines to prevent Linux PTY buffer
     # truncation (which occurs when single piped commands exceed 1024 bytes).
@@ -79,41 +107,56 @@ fetch_once() {
                 sleep 1
             fi
 
-            # 1. Nearby Sector Cell Telemetry
-            printf 'echo NEARBY_BEGIN\r\n'
-            printf "atcli 'AT+QENG=\"servingcell\"'\r\n"
-            printf "atcli 'AT+BNRCELLH=?'\r\n"
-            printf 'echo NEARBY_END\r\n'
+            # 1. Nearby Sector Cell Telemetry & Tower Lock (only when Nearby Cells is visible)
+            if [ "$NEED_NEARBY" = "1" ]; then
+                printf 'echo NEARBY_BEGIN\r\n'
+                printf "atcli 'AT+QENG=\"servingcell\"'\r\n"
+                printf "atcli 'AT+BNRCELLH=?'\r\n"
+                printf 'echo NEARBY_END\r\n'
 
-            # 2. 5G NR Tower Lock Status
-            printf 'echo LOCKCFG_BEGIN\r\n'
-            printf 'cricli get_nr5g_cell_config\r\n'
-            printf 'echo LOCKCFG_END\r\n'
+                printf 'echo LOCKCFG_BEGIN\r\n'
+                printf 'cricli get_nr5g_cell_config\r\n'
+                printf 'echo LOCKCFG_END\r\n'
+            fi
 
-            # 3. Cell Location & Tower Identifiers (TAC & Global Cell ID)
+            # 2. Cell Location & Tower Identifiers (TAC & Global Cell ID)
             printf 'echo LOC_BEGIN\r\n'
             printf 'cricli cell_location\r\n'
             printf 'echo LOC_END\r\n'
 
-            # 4. Multi-Zone Thermal Telemetry
-            printf 'for z in /sys/class/thermal/thermal_zone*; do echo TZ:$(basename $z):$(cat $z/type 2>/dev/null):$(cat $z/temp 2>/dev/null); done\r\n'
+            # 3. Multi-Zone Thermal Telemetry (only when Thermal Sensors is visible)
+            if [ "$NEED_THERMAL" = "1" ]; then
+                printf 'for z in /sys/class/thermal/thermal_zone*; do echo TZ:$(basename $z):$(cat $z/type 2>/dev/null):$(cat $z/temp 2>/dev/null); done\r\n'
+            fi
 
-            # 4. CPU Delta State Sampling (2 samples ~1s apart)
-            printf 'echo STAT1_BEGIN; cat /proc/stat; echo STAT1_END\r\n'
-            sleep 1
-            printf 'echo STAT2_BEGIN; cat /proc/stat; echo STAT2_END\r\n'
+            # 4. CPU Delta State Sampling (2 samples ~1s apart, only when CPU widgets are visible)
+            if [ "$NEED_CPU" = "1" ]; then
+                printf 'echo STAT1_BEGIN; cat /proc/stat; echo STAT1_END\r\n'
+                sleep 1
+                printf 'echo STAT2_BEGIN; cat /proc/stat; echo STAT2_END\r\n'
+            fi
 
-            # 5. Memory Telemetry
-            printf "echo MEM:\$(awk '/^MemTotal:/{t=\$2} /^MemFree:/{f=\$2} /^MemAvailable:/{a=\$2} /^Buffers:/{b=\$2} /^Cached:/{c=\$2} /^SwapTotal:/{st=\$2} /^SwapFree:/{sf=\$2} END{printf \"%%s:%%s:%%s:%%s:%%s:%%s:%%s\", t, f, a, b, c, st, sf}' /proc/meminfo)\r\n"
+            # 5. Memory Telemetry (only when Memory is visible)
+            if [ "$NEED_MEM" = "1" ]; then
+                printf "echo MEM:\$(awk '/^MemTotal:/{t=\$2} /^MemFree:/{f=\$2} /^MemAvailable:/{a=\$2} /^Buffers:/{b=\$2} /^Cached:/{c=\$2} /^SwapTotal:/{st=\$2} /^SwapFree:/{sf=\$2} END{printf \"%%s:%%s:%%s:%%s:%%s:%%s:%%s\", t, f, a, b, c, st, sf}' /proc/meminfo)\r\n"
+            fi
 
             # 6. System Load, Uptime, Cores, Hardware Model, and Conntrack
-            printf 'echo LOADAVG:$(cat /proc/loadavg)\r\n'
-            printf 'echo UPTIME:$(cat /proc/uptime)\r\n'
-            printf 'echo CORES:$(grep -c ^processor /proc/cpuinfo)\r\n'
-            printf "MODEL_VAL=\$(cat /proc/device-tree/model 2>/dev/null | tr -d '\\\\0'); [ -z \"\$MODEL_VAL\" ] && MODEL_VAL=\$(grep -m1 Hardware /proc/cpuinfo | cut -d: -f2); [ -z \"\$MODEL_VAL\" ] && MODEL_VAL=\$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2); echo MODEL:\$MODEL_VAL\r\n"
-            printf 'echo CONNTRACK:$(cat /proc/sys/net/netfilter/nf_conntrack_count 2>/dev/null):$(cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null)\r\n'
+            if [ "$NEED_SYS" = "1" ]; then
+                printf 'echo LOADAVG:$(cat /proc/loadavg)\r\n'
+                printf 'echo UPTIME:$(cat /proc/uptime)\r\n'
+                printf 'echo CORES:$(grep -c ^processor /proc/cpuinfo)\r\n'
+                printf "MODEL_VAL=\$(cat /proc/device-tree/model 2>/dev/null | tr -d '\\\\0'); [ -z \"\$MODEL_VAL\" ] && MODEL_VAL=\$(grep -m1 Hardware /proc/cpuinfo | cut -d: -f2); [ -z \"\$MODEL_VAL\" ] && MODEL_VAL=\$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2); echo MODEL:\$MODEL_VAL\r\n"
+                printf 'echo CONNTRACK:$(cat /proc/sys/net/netfilter/nf_conntrack_count 2>/dev/null):$(cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null)\r\n'
+            fi
 
-            sleep 8
+            # Dynamic wait time: AT+BNRCELLH=? requires ~8s for modem channel scan;
+            # without it, all other queries complete within 2-3s.
+            if [ "$NEED_NEARBY" = "1" ]; then
+                sleep 8
+            else
+                sleep 3
+            fi
             printf 'exit\r\n'
             sleep 1
         } | $RUN 2>&1
