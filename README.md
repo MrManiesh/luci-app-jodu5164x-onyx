@@ -2,125 +2,155 @@
 
 # luci-app-jodu5164x-status
 
-### Real-Time 5G Dashboard for ODU (JODU51641 / JODU51642) on OpenWrt
+### Real-Time 5G Dashboard for Sercomm JODU5164x ODUs (JODU51641 / JODU51642) on OpenWrt
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-status/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-status/releases)
 [![OpenWrt](https://img.shields.io/badge/OpenWrt-23.05%20%7C%2024.10-success.svg)](https://openwrt.org)
 [![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-Compatible-success.svg)](https://immortalwrt.org)
+[![Telegram](https://img.shields.io/badge/Telegram-@Zeetron-2CA5E0?logo=telegram&logoColor=white)](https://t.me/Zeetron)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-orange.svg)](LICENSE)
 
-A modern, feature-packed LuCI web dashboard extension designed specifically for **5G Outdoor Units (ODU)** (**JODU51641** and **JODU51642**).
+A modern, responsive LuCI web dashboard extension designed specifically for **Sercomm 5G Outdoor Units (ODU)** (**JODU51641** and **JODU51642**).
 
 </div>
 
 ---
 
 > [!CAUTION]
-> ### ⚠️ Development Notice & Disclaimer
-> **This project is currently under active development toward a stable release.**
-> 
-> Features such as cell locking, rebooting, and diagnostic commands interact directly with your modem's internal CLI (`cricli` and `atcli`) over telnet. While commands are sent to volatile memory (`/tmp`) and do not modify persistent firmware partitions, **use this software at your own risk**. The developers are not responsible for connection drops, device misconfigurations, or service interruptions caused by third-party modems or network operators.
+> ### ⚠️ Educational & Research Disclaimer
+> **This software is developed strictly for educational, research, and personal hobbyist purposes.**
+>
+> Features such as cell locking, rebooting, and diagnostic queries interact with your modem's internal CLI (`cricli` and `atcli`) and native WebUI. While commands are sent in volatile memory and do not modify persistent firmware partitions, **use this software at your own risk**. The developers are not responsible for connection drops, device misconfigurations, or service interruptions caused by third-party modems or network operators.
 
 ---
 
 ## 📖 About The Project
 
-When using a 5G Outdoor Unit (CPE) connected directly to your OpenWrt router, checking your 5G signal quality, finding which tower you are connected to, or locking to a less congested carrier frequency usually requires opening telnet manually or accessing the restricted ODU interface.
+When using a 5G Outdoor Unit (CPE) connected to your OpenWrt router, monitoring 5G signal quality, determining connected cell tower metrics, or locking to a less congested tower usually requires manual Telnet sessions or dealing with the ODU's single-login WebUI restrictions.
 
-**luci-app-jodu5164x-status** brings everything directly into your OpenWrt Web interface with an intuitive, dynamic dashboard, giving you complete visibility and control over your 5G connection.
+**luci-app-jodu5164x-status** brings complete visibility and control directly into your OpenWrt LuCI interface with a real-time, non-blocking telemetry dashboard.
 
 ---
 
-## ✨ Features Explained
+## ✨ Features
 
-### 📡 Real-Time 5G Signal & Radio Metrics
-- **Live Stats**: Continuously monitors **RSRP** (Signal Strength), **RSRQ** (Signal Quality), and **SINR** (Signal-to-Noise Ratio).
-- **Overall Signal Score**: Calculates a consolidated signal quality percentage with dynamic 5-bar visualization.
-- **Radio Parameters**: Shows Modulation (DL/UL QAM), MIMO layers (2x2 / 4x4), and Block Error Rate (BLER).
+### 📡 Real-Time 5G Radio & Signal Telemetry
+- **Live Signal Metrics**: Real-time monitoring of **SS-RSRP** (Signal Strength), **SS-RSRQ** (Signal Quality), and **SS-SINR** (Signal-to-Noise Ratio).
+- **Consolidated Signal Score**: Quality percentage gauge with clear coverage status (*Excellent*, *Good*, or *Weak*).
+- **Full Radio Parameters**: Modulation (DL/UL QAM), MIMO layers (e.g. 4x4), DL Block Error Rate (**BLER %**), and NR-ARFCN channel.
+- **Top Summary Cards**: Instant glance at Network Operator (PLMN), Signal Strength, Radio Purity, and Ethernet link speed.
 
 ### 📏 Tower Distance Estimator (Timing Advance)
-- Automatically converts 5G NR Timing Advance ($N_{TA}$) into an estimated physical distance to the serving gNodeB cell tower (e.g., `6 (~469 m to gNodeB)` or `0 (< 78 m · Line of Sight)`).
-- Works with subcarrier spacing calculations for both **n78 (30 kHz)** and **n28 (15 kHz)** bands.
+- Automatically converts 5G NR Timing Advance ($N_{TA}$) into an estimated physical distance to the serving gNodeB cell tower based on 3GPP standards ($\approx 78.12\text{ m}$ per TA unit).
+- Formatted clearly in real time:
+  - `TA: 0 (~0 m to gNodeB)` (Line of sight / near tower)
+  - `TA: 3 (~234 m to gNodeB)`
+  - `TA: 15 (~1172 m / 1.17 km to gNodeB)`
+- Displayed both in the Primary Cell table and inside the Outdoor Antenna Aiming mode modal.
 
-### 🎯 Outdoor Antenna Alignment / Aiming Mode (with Audio Beeper 🔊)
-- Made specifically for when you take your phone up to the roof, terrace, or balcony to mount or aim your ODU antenna.
-- **Sunlight-Readable View**: Oversized, high-contrast gauges for RSRP and SINR visible under direct sunlight.
-- **Peak Value Tracking**: Keeps memory of the best RSRP and SINR recorded during your session (`Best: -76 dBm | Best: 24 dB`) so you can pinpoint the exact sweet-spot angle.
-- **Live Acoustic Beeper**: Emits a periodic audio tone directly from your phone or laptop browser via the HTML5 Web Audio API. The pitch rises and the beep interval accelerates as signal peaks, allowing **100% hands-free** antenna alignment!
+### 🛰️ Cell Location & Tower Identifiers
+- Automatically extracts and displays:
+  - **Tracking Area Code (TAC)**: Formatted in both hexadecimal and decimal (e.g., `0xA8 (168)`).
+  - **Global Cell ID (NCI)**: Formatted in both decimal and hexadecimal (e.g., `3439575040 (0xCD03C000)`) for easy lookup on platforms like CellMapper.
+  - **Physical Cell ID (PCI)**: Real-time identification of your serving sector.
 
-### ⚡ Carrier Aggregation (CA) & Band Details
-- **Hero CA Badge**: Displays active carrier aggregation status right at the top (e.g., `2CA: n78 + n78 (200 MHz)` vs `1CA: n78 (100 MHz)`).
-- **Friendly Band Names**: Identifies frequencies clearly (e.g., `n78 (3500 MHz · C-Band)`, `n28 (700 MHz · FDD Low-Band)`, `n258 (26 GHz · mmWave)`).
-- **Dynamic Duplex Detection**: Identifies whether the active carrier is operating in **TDD** (Time Division) or **FDD** (Frequency Division).
+### ⚡ Carrier Aggregation (Secondary Cell) & Aggregate Bandwidth
+- **Secondary Component Carrier (SCC)**: Full telemetry card for secondary carrier parameters when active (Band, Bandwidth, PCI, ARFCN, BLER, Modulation, MIMO, RSRP, RSRQ, SINR).
+- **Dynamic Carrier State**: Displays a clean idle card when CA is inactive, and seamlessly switches to live secondary radio telemetry when engaged under load.
+- **Aggregate Bandwidth Clarification**: Automatically computes total downlink bandwidth ($BW_{PCC} + BW_{SCC}$) and prominently displays:
+  - **Secondary Cell Header Badge**: `⚡ Total: 200 MHz DL`
+  - **Primary Cell Table**: `100 MHz (PCC) · Total: 200 MHz DL (2x CA)`
+  - **Secondary Cell Table**: `Total: 200 MHz DL (100 MHz PCC + 100 MHz SCC)`
+  - **Aiming Mode Modal**: Displays aggregate bandwidth status in real time.
+
+### 🎯 Outdoor Antenna Alignment / Aiming Mode (with Web Audio Beeper 🔊)
+- Specially designed for aiming and mounting your ODU antenna outdoors on a roof, terrace, or mast using a mobile phone or laptop:
+  - **High-Contrast Sunlight UI**: Oversized RSRP and SINR indicators visible in bright direct sunlight.
+  - **1-Second Real-Time Alignment Polling**: Automatically accelerates polling to 1-second intervals while aiming mode is open.
+  - **Live Web Audio Beeper**: Emits pitch-modulated audio beeps directly through your browser via the HTML5 Web Audio API. As signal peaks, the audio pitch rises and the beep interval accelerates for **100% hands-free** antenna alignment!
+  - **Peak Value & Delta Baseline Memory**: Tracks your session starting baseline and records peak RSRP and SINR values with live delta badges (`▲ +X dBm` / `▼ -X dBm`).
+  - **Serving Cell Context & Tower Distance**: Displays active Band, PCI, ARFCN, and real-time distance (`TA: <val> (~<dist> to gNodeB)`).
+  - **Handover Detector**: Instant warning banner if the modem unexpectedly hops to a different PCI while rotating the antenna.
 
 ### 🔒 Cell & Frequency Locking
-- **Lock to Target Tower**: Lock the modem to a specific Physical Cell ID (PCI) and channel (NR-ARFCN) directly from the UI or neighbor list.
-- **Carrier Frequency Lock**: Leave PCI empty to lock onto a carrier frequency (ARFCN) while letting the modem roam between sectors.
-- **1-Click Auto Unlock**: Restore automatic carrier selection at any time.
+- **1-Click Tower Lock**: Lock directly to any detected tower from the Nearby Cells scan list.
+- **Manual Cell Lock**: Input custom Physical Cell ID (PCI) and channel (NR-ARFCN) via the manual lock dialog.
+- **1-Click Auto Unlock**: Remove locks at any time to return the modem to automatic cell selection.
 
-### 🛰️ Cell Identity & Neighbouring Cells Tracking
-- Extracts the 5G **Cell ID** (NCI) and **Tracking Area Code (TAC)**.
-- Scans and lists all active secondary cells (SCells) and detected neighbouring towers in your sector with individual RSRP/RSRQ readings and instant 1-click lock buttons.
+### 📡 Nearby Cells & Sector Scan
+- Lists detected neighbouring sector towers with PCI, ARFCN, RSRP, and RSRQ.
+- Clearly flags the active `Serving (PCC)` and `Secondary (SCC)` cells.
 
-### 💻 Diagnostic Terminal with Quick-Action Chips
-- Built-in terminal in the Settings modal that executes commands directly on the ODU over telnet.
-- Includes 1-tap quick buttons for frequent diagnostic commands:
-  - `cricli cell_location` — Tower location, TAC, Cell ID, and GPS coordinates
-  - `AT+BNRINFO` — Primary 5G serving cell details
-  - `AT+NRCAINFO` — Carrier aggregation & MIMO modulation matrix
-  - `AT+BNRCELLH` — Neighbour cell measurement report
-  - `cricli signal` — Low-level radio signal breakdown
-  - `cricli wwan_stats` — WWAN interface packet and byte statistics
-  - `cricli band` — Supported and active frequency bands
-  - `cricli get_perso_info` — SIM card lock and profile status
+### 📊 ODU Hardware & System Telemetry
+- **Hardware Control**: 1-Click remote reboot of the 5G ODU with automatic reconnection monitoring.
+- **Ethernet Diagnostics**: Real-time link status, duplex, negotiated speed, and Cat6/Gigabit cable recommendations for sub-gigabit links.
+- **CPU & RAM Gauges**: Circular percentage gauges with 5-minute historical sparklines.
+- **Detailed CPU Breakdown**: User space, System kernel, Idle, I/O wait, Hardware IRQ, Software IRQ, context switches/s, interrupt rate/s, and active connection tracking (`nf_conntrack`).
+- **Internal Multi-Zone Thermal Sensors**: Multi-column temperature sensor grid covering CPU, 5G Modem, Sub-6 RF, Power Amplifiers, SDR transceivers, and ambient chassis, with a hottest-sensor alert badge.
+- **Data Usage & Traffic Tracker**: Session upload and download counters, packet loss indicator, and rolling history windows (5 min, 1 hour, 5 hours, 24 hours).
 
-### 📊 Session Data & Device Health
-- Displays session download and upload data counters.
-- Real-time ODU CPU usage percentage and internal thermal sensor temperature.
-- ODU system uptime tracker.
+### ⏸️ Monitoring Session Pause & Configuration
+- **Single-Login Session Conflict Prevention**: Sercomm ODUs only allow one active WebUI login at a time. The dashboard includes a top-bar **`Monitoring: ON / OFF`** button to pause LuCI polling and release the session whenever you want to log into the native ODU WebUI.
+- **Settings Modal**: Configure ODU IP address, WebUI credentials, Telnet port/password, polling interval (1s to 10s), and automated daily scheduled reboot.
+- **CLI Diagnostics Tool**: Includes `/usr/libexec/jodu5164x-diag.sh <cmd>` for fast command-line diagnostics over SSH (`cell_location`, `signal`, `band`, `nearby`, etc.).
 
 ---
 
-## 🛠️ How It Works
+## 🛠️ Architecture & How It Works
 
 ```
-┌──────────────────────────────────────┐
-│       OpenWrt Router (LuCI)          │
-│  - luci-app-jodu5164x-status WebUI     │
-│  - jodu5164x-data.sh (Collector)     │
-└──────────────────┬───────────────────┘
-                   │
-         Ethernet / LAN (IP: 192.168.225.1)
-                   │
-┌──────────────────▼───────────────────┐
-│     ODU (JODU51641 / 51642)  │
-│  - Telnet Provisioning on Port 23    │
-│  - /tmp/odu_monitor.sh (in RAM)      │
-│  - BusyBox httpd on Port 8080        │
-└──────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                   OpenWrt Router (LuCI)                   │
+│                                                           │
+│  ┌───────────────────────┐     ┌───────────────────────┐  │
+│  │   LuCI Web Interface  │     │   jodu5164x-updater   │  │
+│  │      (status.js)      │     │    (procd daemon)     │  │
+│  └───────────┬───────────┘     └───────────┬───────────┘  │
+│              │ calls                       │ background   │
+│              ▼                             │ poll (~15s)  │
+│  ┌───────────────────────┐                 │              │
+│  │   jodu5164x-data.sh   │◄────────────────┘              │
+│  │ (Combined Aggregator) │  reads /tmp/jodu5164x_sys_cache│
+│  └───────────┬───────────┘                                │
+└──────────────┼─────────────────────────────┼──────────────┘
+               │ Native WebUI                │ Telnet CLI
+               │ JSON API (Port 80)          │ (Port 23)
+               ▼                             ▼
+┌───────────────────────────────────────────────────────────┐
+│               Sercomm 5G ODU (JODU5164x)                  │
+│  - Native HTTP WebUI (HMAC-SHA256 challenge auth)         │
+│  - Internal Qualcomm/Sercomm diagnostic CLI (cricli/atcli) │
+└───────────────────────────────────────────────────────────┘
 ```
 
-1. **Zero Permanent Firmware Alterations**: Nothing is written to the ODU's flash memory. When provisioning, a lightweight collector script is placed in `/tmp` (RAM) and executed.
-2. **Safe Local Communication**: The OpenWrt router queries the status endpoint over local HTTP (`:8080/status.txt`), avoiding repetitive telnet logins during regular monitoring.
-3. **Automatic Re-provisioning**: If the ODU is rebooted or power-cycled, the app automatically detects the offline state and re-provisions the monitor service in the background.
+1. **Dual-Pipeline Telemetry**:
+   - **Native WebUI HTTP API**: Queries the ODU's built-in web services using HMAC-SHA256 challenge-response session authentication for Primary/Secondary cell parameters, LAN status, and traffic data.
+   - **Background Telnet Daemon**: Runs under `procd` on OpenWrt, polling low-level diagnostics (`atcli`, `cricli`, thermal zones, `/proc/stat`, `/proc/meminfo`) every ~15 seconds into an atomic RAM cache (`/tmp/jodu5164x_sys_cache.raw`).
+2. **Sub-50ms Non-Blocking LuCI Execution**:
+   - The LuCI data collector (`jodu5164x-data.sh`) reads the local background cache and active HTTP session instantaneously in < 50ms, avoiding browser timeouts (`exec_failed`).
+3. **Zero Firmware Modifications**:
+   - Absolutely nothing is modified or installed on the ODU firmware or persistent flash.
 
 ---
 
-## 📦 Compatibility & Requirements
+## 📦 Requirements & Compatibility
 
 | Component | Requirement |
 |:---|:---|
-| **Supported Modems** | ODU JODU51641, JODU51642 |
-| **Router OS** | OpenWrt 23.05, OpenWrt 24.10, ImmortalWrt (all architectures) |
-| **Package Managers** | Compatible with both modern APK (`apk add`) and legacy IPK (`opkg`) |
-| **Dependencies** | `luci-base`, `wget`, `telnet-bsd`, `luci-compat` |
+| **Supported Hardware** | Sercomm 5G ODU (JODU51641, JODU51642) |
+| **Router OS** | OpenWrt 23.05, OpenWrt 24.10, ImmortalWrt (all CPU architectures) |
+| **Package Format** | Compatible with both APK (`apk add`) and IPK (`opkg`) |
+| **Dependencies** | `luci-base`, `curl`, `openssl-util`, `telnet-bsd`, `luci-compat` |
+
+> [!NOTE]
+> `openssl-util` and `curl` are required to perform the HMAC-SHA256 challenge-response authentication against the ODU WebUI API.
 
 ---
 
 ## 🚀 Installation
 
 ### Option 1: APK Package (OpenWrt 24.10+ / Alpine-based)
-Download and install directly from your router's terminal:
+Install directly from your router's terminal:
 ```sh
 wget --no-check-certificate -O /tmp/luci-app-jodu5164x-status.apk https://github.com/MrManiesh/luci-app-jodu5164x-status/releases/latest/download/luci-app-jodu5164x-status.apk
 apk add --allow-untrusted /tmp/luci-app-jodu5164x-status.apk
@@ -132,43 +162,49 @@ wget --no-check-certificate -O /tmp/luci-app-jodu5164x-status.ipk https://github
 opkg install /tmp/luci-app-jodu5164x-status.ipk
 ```
 
-After installation, refresh your browser and navigate to:  
+After installation, refresh your LuCI browser page and navigate to:  
 👉 **Status** $\rightarrow$ **5G Dashboard**
 
 ---
 
-## ⚙️ Initial Configuration
+## ⚙️ Configuration
 
-By default, the package assumes the ODU is at the standard IP `192.168.225.1` with default telnet access.
+By default, the package connects to the ODU at `192.168.225.1` with default WebUI credentials (`Admin`).
 
-If your network uses a different subnet or password:
-1. Click the **Settings** button in the top right of the 5G Dashboard.
-2. Switch to the **Config** tab.
-3. Update the **ODU IP Address**, **Telnet Username**, or **Password**.
-4. Click **Save & Apply**.
+To configure your credentials or network settings:
+1. Click the **⚙️ Settings** button at the top right of the 5G Dashboard.
+2. Enter your **ODU IP Address**, **WebUI Password**, and **Telnet Password**.
+3. Choose your preferred **Telemetry Polling Rate** (1s to 10s, default 3s).
+4. Optionally configure **Daily Scheduled Reboot** time.
+5. Click **Save & Apply**.
 
 ---
 
 ## ❓ Troubleshooting / FAQ
 
 <details>
-<summary><b>The dashboard shows "PROVISIONING..."</b></summary>
-The router is establishing a telnet connection to the ODU to launch the background status service. This typically takes 15–25 seconds. Ensure the ODU is powered on and reachable at the configured IP address.
+<summary><b>The dashboard shows "ODU WebUI password is not configured"</b></summary>
+Open the Settings modal on the dashboard and enter your ODU WebUI password. The password is required to query cellular metrics via the HMAC-SHA256 API.
 </details>
 
 <details>
-<summary><b>The dashboard shows "LINK DOWN"</b></summary>
-The ODU is unreachable over Ethernet or has a different IP. Verify the physical cable between your OpenWrt router and the ODU PoE injector, and ensure you can ping the ODU IP (default <code>192.168.225.1</code>).
+<summary><b>The dashboard shows "Telnet is unreachable" or "auth_failed"</b></summary>
+Verify that Telnet is enabled on your ODU and that your router can reach port 23 on the ODU IP. If your ODU requires a Telnet login password, enter it in Settings under "Telnet Telemetry Service".
+</details>
+
+<details>
+<summary><b>I can't log into the native ODU WebUI from my browser</b></summary>
+Sercomm ODUs restrict WebUI logins to a single concurrent session. Click the <b>Monitoring: ON</b> button at the top of the dashboard to pause polling and free the session. Once you finish using the native WebUI, click <b>Monitoring: OFF</b> to resume real-time dashboard updates.
 </details>
 
 <details>
 <summary><b>How do I unlock if I locked to a weak cell?</b></summary>
-Click the <b>Clear Locks</b> button in the Neighbouring Cells header, or click <b>Manual Lock</b>, leave the fields blank, and confirm. The modem will return to automatic tower selection.
+Click the <b>🔓 Unlock</b> button next to the Lock State badge in the Nearby Cells section, or open <b>Manual Lock</b> and click Unlock.
 </details>
 
 <details>
 <summary><b>Does this work with other 5G modems or routers?</b></summary>
-This package is specifically tailored for the JODU5164x series (JODU51641 / JODU51642) using Sercomm/Qualcomm internal CLI utilities (<code>cricli</code> / <code>atcli</code>). Modems from other manufacturers (ZTE, Huawei, Quectel) use different command interfaces.
+This package is specifically tailored for Sercomm JODU5164x series ODUs (JODU51641 / JODU51642) utilizing Qualcomm/Sercomm internal diagnostic interfaces (<code>cricli</code> / <code>atcli</code>) and the Sercomm WebUI challenge protocol.
 </details>
 
 ---
@@ -180,12 +216,14 @@ This package is specifically tailored for the JODU5164x series (JODU51641 / JODU
 > 
 > All trademarks, service marks, trade names, and product names referenced in this repository are the property of their respective owners.
 > 
-> **Notice to Rights Holders & Manufacturers**: If you believe that any file, parameter, documentation, or code snippet in this repository infringes upon proprietary rights, contains confidential material, or should not be publicly hosted, please **open a GitHub Issue or contact the maintainer directly** (via email: `manishmatwacs@gmail.com` or through GitHub) for immediate review, modification, or takedown.
+> **Notice to Rights Holders & Manufacturers**: If you believe that any file, parameter, documentation, or code snippet in this repository infringes upon proprietary rights, contains confidential material, or should not be publicly hosted, please **open a GitHub Issue or contact the maintainer directly via Telegram**:
+>
+> 📬 **Telegram**: [t.me/Zeetron](https://t.me/Zeetron) (`@Zeetron`)
 
 ---
 
-## 📄 License & Credits
+## 📄 License & Maintainer
 
 - **License**: Distributed under the [GNU General Public License v3.0](LICENSE).
-- **Author**: Manish Matwa Choudhary
-- **Project**: Personal OpenWrt development project for 5G CPE hardware.
+- **Maintainer**: Manish Matwa Choudhary ([@Zeetron](https://t.me/Zeetron))
+- **Project**: OpenWrt LuCI 5G CPE Dashboard.
