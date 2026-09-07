@@ -26,6 +26,60 @@ var rebootState = { inProgress: false, sawOffline: false };
 var triggerRefresh = null;
 var currentPollInterval = 3;
 
+var WIDGET_CATALOG = [
+    { id: 'summary', name: 'Quick Metrics Summary', desc: 'Top summary cards (Network, Signal, Radio Purity, Ethernet link)', icon: '📶' },
+    { id: 'primary_cell', name: 'Primary Cell Parameters', desc: 'Primary serving cell radio parameters, TAC, Cell ID, Tower Distance', icon: '📡' },
+    { id: 'secondary_cell', name: 'Secondary Cell (Carrier Aggregation)', desc: 'Secondary carrier metrics and aggregate bandwidth clarification', icon: '⚡' },
+    { id: 'nearby_cells', name: 'Nearby Cells & Sector Scan', desc: 'Neighbouring sector towers with 1-click lock and unlock buttons', icon: '🛰️' },
+    { id: 'eth_mgmt', name: 'ODU Management & Hardware Control', desc: 'Ethernet link details, cable tips, and remote ODU reboot', icon: '🔌' },
+    { id: 'cpu_gauge', name: 'CPU Usage Gauge', desc: 'Circular CPU percentage gauge and 5-minute history sparkline', icon: '📊' },
+    { id: 'memory', name: 'Memory (RAM) Telemetry', desc: 'RAM usage gauge, total/used/free/cached/buffers, and sparkline', icon: '🧠' },
+    { id: 'cpu_detail', name: 'CPU Detailed Breakdown', desc: 'User, System, Idle, I/O wait, IRQ, context switches, active connections', icon: '📋' },
+    { id: 'data_usage', name: 'Data Usage & Bandwidth Tracker', desc: 'Session data upload/download volume and rolling history windows', icon: '📈' },
+    { id: 'thermal', name: 'Internal Thermal Sensors', desc: 'Multi-zone temperature grid and hottest sensor alert', icon: '🌡️' }
+];
+
+var WIDGET_STORAGE_KEY = 'jodu5164x_widget_visibility_v1';
+
+function getWidgetVisibility() {
+    try {
+        if (typeof localStorage !== 'undefined') {
+            var saved = localStorage.getItem(WIDGET_STORAGE_KEY);
+            if (saved) return JSON.parse(saved);
+        }
+    } catch (e) { }
+    return {};
+}
+
+function isWidgetVisible(id) {
+    var map = getWidgetVisibility();
+    return map[id] !== false;
+}
+
+function setWidgetVisibility(id, visible) {
+    var map = getWidgetVisibility();
+    map[id] = !!visible;
+    try {
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(map));
+        }
+    } catch (e) { }
+}
+
+function resetWidgetVisibility() {
+    try {
+        if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem(WIDGET_STORAGE_KEY);
+        }
+    } catch (e) { }
+}
+
+function buildAutoGrid(elements) {
+    var visible = elements.filter(function (el) { return el != null; });
+    if (!visible.length) return null;
+    return E('div', { 'class': 'jodu-grid-auto' }, visible);
+}
+
 function notify(text, cls, duration) {
     var n = ui.addNotification(null, E('p', {}, text), cls || 'info');
     if (duration) {
@@ -130,30 +184,50 @@ function summaryCard(label, value, color, sublabel, icon) {
 }
 
 function summaryRow(data, online) {
+    if (!isWidgetVisible('summary')) return null;
+
+    var hideBtn = E('button', {
+        'class': 'jodu-summary-hide-btn',
+        'title': 'Hide Quick Metrics Summary (restore anytime from 🎨 Customize)',
+        'click': function (ev) {
+            ev.stopPropagation();
+            setWidgetVisibility('summary', false);
+            notify('Hidden "Quick Metrics Summary". You can restore it anytime from "🎨 Customize".', 'info', 3500);
+            if (triggerRefresh) triggerRefresh();
+        }
+    }, '✕');
+
+    var cards;
     if (!online) {
-        return E('div', { 'class': 'jodu-sum-row' }, [
+        cards = [
             summaryCard('NETWORK', 'OFFLINE', COLOR_POOR, 'ODU Unreachable', '📡'),
             summaryCard('SIGNAL STRENGTH', '--', COLOR_NEUTRAL, 'No connection', '📶'),
             summaryCard('RADIO PURITY', '--', COLOR_NEUTRAL, 'Telemetry paused', '⚡'),
             summaryCard('ETHERNET LINK', formatSpeed(data.eth_speed), COLOR_NEUTRAL, data.eth_link_status || 'Disconnected', '🔌')
-        ]);
-    }
-    var qualityPct = signalQualityPercent(data.rsrp);
-    var qualityColorVal = qualityPct == null ? COLOR_NEUTRAL : (qualityPct >= 70 ? COLOR_GOOD : (qualityPct >= 40 ? COLOR_OK : COLOR_POOR));
-    var noSim = data.sim_status === 'missing';
-    var speedCol = ethSpeedColor(data.eth_speed);
-    var netSub = (data.plmn || '405-874') + (data.operating_mode ? ' · NR5G-' + data.operating_mode : '') + (data.band ? ' · B' + data.band : '');
-    var sigSub = qualityPct != null ? (qualityPct + '% · ' + (qualityPct >= 75 ? 'Excellent Coverage' : (qualityPct >= 45 ? 'Good Signal' : 'Weak Signal'))) : 'Sampling...';
-    var sinrVal = (data.sinr && data.sinr !== 'NA' && data.sinr !== '--') ? data.sinr + ' dB SINR' : 'NA';
-    var puritySub = (data.rsrq && data.rsrq !== 'NA' && data.rsrq !== '--') ? 'RSRQ: ' + data.rsrq + ' dB' : 'Carrier Sync Active';
-    var ethSub = (data.eth_link_status ? 'Link: ' + data.eth_link_status : 'Port Active') + (data.eth_duplex ? ' · ' + data.eth_duplex : '');
+        ];
+    } else {
+        var qualityPct = signalQualityPercent(data.rsrp);
+        var qualityColorVal = qualityPct == null ? COLOR_NEUTRAL : (qualityPct >= 70 ? COLOR_GOOD : (qualityPct >= 40 ? COLOR_OK : COLOR_POOR));
+        var noSim = data.sim_status === 'missing';
+        var speedCol = ethSpeedColor(data.eth_speed);
+        var netSub = (data.plmn || '405-874') + (data.operating_mode ? ' · NR5G-' + data.operating_mode : '') + (data.band ? ' · B' + data.band : '');
+        var sigSub = qualityPct != null ? (qualityPct + '% · ' + (qualityPct >= 75 ? 'Excellent Coverage' : (qualityPct >= 45 ? 'Good Signal' : 'Weak Signal'))) : 'Sampling...';
+        var sinrVal = (data.sinr && data.sinr !== 'NA' && data.sinr !== '--') ? data.sinr + ' dB SINR' : 'NA';
+        var puritySub = (data.rsrq && data.rsrq !== 'NA' && data.rsrq !== '--') ? 'RSRQ: ' + data.rsrq + ' dB' : 'Carrier Sync Active';
+        var ethSub = (data.eth_link_status ? 'Link: ' + data.eth_link_status : 'Port Active') + (data.eth_duplex ? ' · ' + data.eth_duplex : '');
 
-    return E('div', { 'class': 'jodu-sum-row' }, [
-        noSim ? summaryCard('NETWORK', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM', '📱') :
-            summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, '📡'),
-        summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', qualityColor('rsrp', data.rsrp), sigSub, '📶'),
-        summaryCard('RADIO PURITY', sinrVal, qualityColor('sinr', data.sinr), puritySub, '⚡'),
-        summaryCard('ETHERNET LINK', formatSpeed(data.eth_speed), speedCol, ethSub, '🔌')
+        cards = [
+            noSim ? summaryCard('NETWORK', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM', '📱') :
+                summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, '📡'),
+            summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', qualityColor('rsrp', data.rsrp), sigSub, '📶'),
+            summaryCard('RADIO PURITY', sinrVal, qualityColor('sinr', data.sinr), puritySub, '⚡'),
+            summaryCard('ETHERNET LINK', formatSpeed(data.eth_speed), speedCol, ethSub, '🔌')
+        ];
+    }
+
+    return E('div', { 'class': 'jodu-summary-wrapper' }, [
+        hideBtn,
+        E('div', { 'class': 'jodu-sum-row' }, cards)
     ]);
 }
 
@@ -223,7 +297,7 @@ function formatCellId(cid) {
     return String(cid);
 }
 
-function secondaryCellPanel(merged) {
+function secondaryCellPanel(merged, widgetId) {
     var band = merged['scc_band'];
     var pci = merged['scc_pci'];
     var rsrp = merged['scc_rsrp'];
@@ -233,7 +307,7 @@ function secondaryCellPanel(merged) {
             E('div', { 'style': 'font-size:2.2em;margin-bottom:8px;opacity:0.6;' }, '📶'),
             E('h4', { 'style': 'margin:0 0 4px;color:#94a3b8;font-weight:600;' }, 'Carrier Aggregation Inactive'),
             E('p', { 'style': 'margin:0;color:#64748b;font-size:0.85em;' }, 'Secondary carrier activates dynamically during high throughput demand.')
-        ]), '⚡');
+        ]), '⚡', null, widgetId);
     }
     var pBw = parseBwMHz(merged['bandwidth']);
     var sBw = parseBwMHz(merged['scc_bw']);
@@ -242,7 +316,7 @@ function secondaryCellPanel(merged) {
         'class': 'jodu-badge',
         'style': 'background:rgba(168,85,247,0.2);color:#c084fc;border:1px solid rgba(168,85,247,0.4);font-weight:700;'
     }, '⚡ Total: ' + totalBw + ' MHz DL') : null;
-    return panel('Cellular Parameters (Secondary Cell)', cellTable('scc_', merged), '⚡', caBadge);
+    return panel('Cellular Parameters (Secondary Cell)', cellTable('scc_', merged), '⚡', caBadge, widgetId);
 }
 
 function cellTable(prefix, d) {
@@ -307,13 +381,31 @@ function cellTable(prefix, d) {
     return E('table', { 'class': 'jodu-table' }, rows);
 }
 
-function panel(title, contentNode, icon, extraHdr) {
+function panel(title, contentNode, icon, extraHdr, widgetId) {
     var hdrChildren = [
-        icon ? E('span', { 'class': 'jodu-card-icon' }, icon) : '',
-        E('span', { 'class': 'jodu-card-title' }, title)
+        E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
+            icon ? E('span', { 'class': 'jodu-card-icon' }, icon) : '',
+            E('span', { 'class': 'jodu-card-title' }, title)
+        ])
     ];
-    if (extraHdr) hdrChildren.push(extraHdr);
-    return E('div', { 'class': 'jodu-card' }, [
+    var rightSide = [];
+    if (extraHdr) rightSide.push(extraHdr);
+    if (widgetId) {
+        rightSide.push(E('button', {
+            'class': 'jodu-panel-hide-btn',
+            'title': 'Hide this section (restore from Customize)',
+            'click': function (ev) {
+                ev.stopPropagation();
+                setWidgetVisibility(widgetId, false);
+                notify('Hidden "' + title + '". You can restore it anytime from "🎨 Customize".', 'info', 3500);
+                if (triggerRefresh) triggerRefresh();
+            }
+        }, '✕'));
+    }
+    if (rightSide.length) {
+        hdrChildren.push(E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, rightSide));
+    }
+    return E('div', { 'class': 'jodu-card', 'data-widget': widgetId || '' }, [
         E('div', { 'class': 'jodu-card-hdr', 'style': 'display:flex;justify-content:space-between;align-items:center;' }, hdrChildren),
         E('div', { 'class': 'jodu-card-body' }, [contentNode])
     ]);
@@ -386,7 +478,7 @@ function manualLockModal(defaultPci, defaultArfcn) {
     ]);
 }
 
-function nearbyCellsSection(data) {
+function nearbyCellsSection(data, widgetId) {
     var cells = Array.isArray(data.nearby_cells) ? data.nearby_cells.slice() : [];
 
     // Always include the active primary serving cell so the connected tower is always visible
@@ -466,7 +558,7 @@ function nearbyCellsSection(data) {
         return panel('Nearby Cells & Tower Scan', E('div', {}, [
             statusRow,
             E('p', { 'style': 'color:#64748b;font-size:0.88em;padding:12px 0;' }, 'No neighbouring cells detected in current sector scan. Use Manual Lock to bind to a specific tower.')
-        ]), '🛰️');
+        ]), '🛰️', null, widgetId);
     }
     var headerRow = E('tr', { 'class': 'jodu-th-tr' }, [
         E('th', { 'class': 'jodu-th' }, 'PCI'),
@@ -505,7 +597,7 @@ function nearbyCellsSection(data) {
     var table = E('div', { 'style': 'max-height:280px;overflow-y:auto' }, [
         E('table', { 'class': 'jodu-table' }, [headerRow].concat(rows))
     ]);
-    return panel('Nearby Cells & Tower Scan (' + cells.length + ' Towers)', E('div', {}, [statusRow, table]), '🛰️');
+    return panel('Nearby Cells & Tower Scan (' + cells.length + ' Towers)', E('div', {}, [statusRow, table]), '🛰️', null, widgetId);
 }
 
 function rebootOdu() {
@@ -548,7 +640,7 @@ function ethSpeedSuggestion(mbps) {
     return '⚠️ Link negotiated at ' + v + ' Mbps. Use a Cat6+ Ethernet cable or Gigabit port to achieve 1 Gbps+ speeds.';
 }
 
-function ethSection(data) {
+function ethSection(data, widgetId) {
     var speedColor = ethSpeedColor(data.eth_speed);
     var rows = [
         paramRow('Link Status', data.eth_link_status, data.eth_link_status === 'Up' ? COLOR_GOOD : COLOR_POOR),
@@ -568,7 +660,7 @@ function ethSection(data) {
     children.push(E('div', { 'style': 'margin-top:14px' }, [
         E('button', { 'class': 'btn cbi-button-negative', 'style': 'width:100%;padding:8px;border-radius:8px;font-weight:600;', 'click': rebootOdu }, '🔄 Reboot 5G ODU')
     ]));
-    return panel('ODU Management & Hardware Control', E('div', {}, children), '🔌');
+    return panel('ODU Management & Hardware Control', E('div', {}, children), '🔌', null, widgetId);
 }
 
 function parseDataSize(str) {
@@ -631,7 +723,7 @@ function formatShortDuration(sec) {
     return (sec / 86400).toFixed(1) + 'd';
 }
 
-function dataUsageSection(data) {
+function dataUsageSection(data, widgetId) {
     var sentBytes = parseDataSize(data.data_sent);
     var receivedBytes = parseDataSize(data.data_received);
     var totalBytes = (sentBytes != null && receivedBytes != null) ? (sentBytes + receivedBytes) : null;
@@ -663,7 +755,7 @@ function dataUsageSection(data) {
         return paramRow(w.label, display, color);
     });
     var historyTable = E('table', { 'class': 'jodu-table', 'style': 'margin-top:8px;' }, historyRows);
-    return panel('Data Usage & Bandwidth Tracker', E('div', {}, [table, note, subheading('Usage Over Time'), historyTable]), '📈');
+    return panel('Data Usage & Bandwidth Tracker', E('div', {}, [table, note, subheading('Usage Over Time'), historyTable]), '📈', null, widgetId);
 }
 
 function tempColor(celsius) {
@@ -803,7 +895,7 @@ function subheading(text) {
     return E('div', { 'class': 'jodu-subheading' }, text);
 }
 
-function cpuGaugePanel(data) {
+function cpuGaugePanel(data, widgetId) {
     pushCpuHistory(data.odu_cpu_pct);
     var cores = (data.odu_cpu_cores && data.odu_cpu_cores !== '--') ? data.odu_cpu_cores : null;
     var color = usagePctColor(data.odu_cpu_pct);
@@ -820,10 +912,10 @@ function cpuGaugePanel(data) {
         subheading('Usage History (5 min)'),
         sparkline(cpuHistory, color)
     ]);
-    return panel(title, content, '⚙️');
+    return panel(title, content, '⚙️', null, widgetId);
 }
 
-function memGaugePanel(data) {
+function memGaugePanel(data, widgetId) {
     pushMemHistory(data.odu_mem_pct);
     var color = usagePctColor(data.odu_mem_pct);
     var pctDisplay = (data.odu_mem_pct != null && data.odu_mem_pct !== '--') ? data.odu_mem_pct + '%' : 'NA';
@@ -854,7 +946,7 @@ function memGaugePanel(data) {
         subheading('Usage History (5 min)'),
         sparkline(memHistory, color)
     ]);
-    return panel('Memory (RAM)', content, '🧠');
+    return panel('Memory (RAM)', content, '🧠', null, widgetId);
 }
 
 function cpuLoadBar(label, pct) {
@@ -870,7 +962,7 @@ function cpuLoadBar(label, pct) {
     ]);
 }
 
-function cpuDetailPanel(data) {
+function cpuDetailPanel(data, widgetId) {
     var content = E('div', {}, [
         cpuLoadBar('Idle (Available)', data.odu_cpu_idle),
         cpuLoadBar('User Space', data.odu_cpu_user),
@@ -885,13 +977,13 @@ function cpuDetailPanel(data) {
             statLine('Active Connections', (data.odu_conntrack_count !== '--' && data.odu_conntrack_max !== '--') ? (data.odu_conntrack_count + ' / ' + data.odu_conntrack_max) : 'NA')
         ])
     ]);
-    return panel('CPU Detailed Breakdown', content, '📊');
+    return panel('CPU Detailed Breakdown', content, '📊', null, widgetId);
 }
 
-function thermalSection(data) {
+function thermalSection(data, widgetId) {
     var zones = Array.isArray(data.thermal_zones) ? data.thermal_zones : [];
     if (!zones.length) {
-        return panel('Internal Thermal Sensors', E('p', { 'style': 'color:#64748b;font-size:0.9em;padding:8px 0;' }, 'No temperature telemetry available (verify Settings).'), '🌡️');
+        return panel('Internal Thermal Sensors', E('p', { 'style': 'color:#64748b;font-size:0.9em;padding:8px 0;' }, 'No temperature telemetry available (verify Settings).'), '🌡️', null, widgetId);
     }
     var maxZone = zones.reduce(function (a, b) {
         return (parseFloat(b.temp_c) > parseFloat(a.temp_c)) ? b : a;
@@ -920,7 +1012,25 @@ function thermalSection(data) {
         E('span', { 'style': 'color:#94a3b8;font-size:0.85em;' }, zones.length + ' active sensors detected'),
         E('span', { 'class': 'jodu-badge', 'style': 'background:' + maxColor + '20;color:' + maxColor + ';border:1px solid ' + maxColor + '50;font-weight:700;' }, '🔥 Hottest: ' + maxZone.temp_c + ' °C (' + maxLabel + ')')
     ]);
-    return panel('Internal Thermal Sensors', E('div', {}, [header, table]), '🌡️');
+    return panel('Internal Thermal Sensors', E('div', {}, [header, table]), '🌡️', null, widgetId);
+}
+
+function emptyDashboardPlaceholder() {
+    return E('div', { 'class': 'jodu-empty-widgets-box' }, [
+        E('div', { 'style': 'font-size:3em;margin-bottom:12px;' }, '🧩'),
+        E('h3', { 'style': 'margin:0 0 8px;font-size:1.3em;color:#f8fafc;' }, 'All Dashboard Widgets Are Hidden'),
+        E('p', { 'style': 'color:#94a3b8;max-width:440px;margin:0 auto 20px;font-size:0.9em;line-height:1.5;' },
+            'You customized the dashboard and closed all sections. You can restore widgets anytime from the Customize menu.'),
+        E('button', {
+            'class': 'btn cbi-button-positive',
+            'style': 'padding:8px 22px;font-weight:700;border-radius:8px;',
+            'click': function () {
+                resetWidgetVisibility();
+                notify('All widgets restored to default layout.', 'info', 3000);
+                if (triggerRefresh) triggerRefresh();
+            }
+        }, '✨ Restore All Widgets')
+    ]);
 }
 
 function renderDashboard(data) {
@@ -955,13 +1065,14 @@ function renderDashboard(data) {
         if (data.webui_message) diagMessages.push(data.webui_message);
         if (data.telnet_message) diagMessages.push(data.telnet_message);
         if (!diagMessages.length) diagMessages.push('Could not reach JODU51641/JODU51642 (' + (data.error || 'unknown error') + ').');
-        return E('div', {}, [
-            rebootBanner,
-            summaryRow(data, false),
-            E('div', { 'style': 'display:flex;flex-direction:column;gap:10px;margin-top:16px;' }, diagMessages.map(function (msg) {
-                return E('div', { 'class': 'alert-message warning' }, msg);
-            }))
-        ]);
+        var offElements = [];
+        if (rebootBanner) offElements.push(rebootBanner);
+        var offSum = summaryRow(data, false);
+        if (offSum) offElements.push(offSum);
+        offElements.push(E('div', { 'style': 'display:flex;flex-direction:column;gap:10px;margin-top:16px;' }, diagMessages.map(function (msg) {
+            return E('div', { 'class': 'alert-message warning' }, msg);
+        })));
+        return E('div', {}, offElements);
     }
 
     var merged = Object.assign({}, data, {
@@ -984,43 +1095,54 @@ function renderDashboard(data) {
         E('p', { 'style': 'margin:4px 0 0;color:#94a3b8;font-size:0.88em;' }, 'Please insert a pSIM or activate eSIM profile on your ODU.')
     ]) : cellTable('', merged);
 
-    var cellPanels = E('div', { 'class': 'jodu-grid-2col' }, [
-        panel('Cellular Parameters (Primary Cell)', primaryCellContent, '📡'),
-        secondaryCellPanel(merged)
+    var sumRow = summaryRow(data, true);
+
+    var cellPanels = buildAutoGrid([
+        isWidgetVisible('primary_cell') ? panel('Cellular Parameters (Primary Cell)', primaryCellContent, '📡', null, 'primary_cell') : null,
+        isWidgetVisible('secondary_cell') ? secondaryCellPanel(merged, 'secondary_cell') : null
     ]);
 
-    var managementColumn = E('div', { 'class': 'jodu-grid-2col' }, [
-        ethSection(data),
-        nearbyCellsSection(data)
+    var managementColumn = buildAutoGrid([
+        isWidgetVisible('eth_mgmt') ? ethSection(data, 'eth_mgmt') : null,
+        isWidgetVisible('nearby_cells') ? nearbyCellsSection(data, 'nearby_cells') : null
     ]);
 
-    var gaugePanels = E('div', { 'class': 'jodu-grid-2col' }, [
-        cpuGaugePanel(data),
-        memGaugePanel(data)
+    var gaugePanels = buildAutoGrid([
+        isWidgetVisible('cpu_gauge') ? cpuGaugePanel(data, 'cpu_gauge') : null,
+        isWidgetVisible('memory') ? memGaugePanel(data, 'memory') : null
     ]);
 
-    var detailPanels = E('div', { 'class': 'jodu-grid-2col' }, [
-        cpuDetailPanel(data),
-        dataUsageSection(data)
+    var detailPanels = buildAutoGrid([
+        isWidgetVisible('cpu_detail') ? cpuDetailPanel(data, 'cpu_detail') : null,
+        isWidgetVisible('data_usage') ? dataUsageSection(data, 'data_usage') : null
     ]);
 
-    var thermalPanel = E('div', { 'style': 'margin-bottom:16px;' }, [
-        thermalSection(data)
-    ]);
+    var thermalPanel = isWidgetVisible('thermal') ? E('div', { 'style': 'margin-bottom:16px;' }, [
+        thermalSection(data, 'thermal')
+    ]) : null;
 
     var telnetNotice = (data.telnet_status && data.telnet_status !== 'ok') ? E('div', { 'class': 'alert-message warning', 'style': 'margin-bottom:16px;' },
         '⚠️ Telnet Notice: ' + (data.telnet_message || 'Telnet telemetry paused — check credentials in Settings.')) : '';
 
-    return E('div', { 'class': 'jodu-container' }, [
-        rebootBanner,
-        telnetNotice,
-        summaryRow(data, true),
-        cellPanels,
-        managementColumn,
-        gaugePanels,
-        detailPanels,
-        thermalPanel
-    ]);
+    var hasAnyWidget = (sumRow != null) || (cellPanels != null) || (managementColumn != null) ||
+        (gaugePanels != null) || (detailPanels != null) || (thermalPanel != null);
+
+    var mainChildren = [];
+    if (rebootBanner) mainChildren.push(rebootBanner);
+    if (telnetNotice) mainChildren.push(telnetNotice);
+
+    if (!hasAnyWidget) {
+        mainChildren.push(emptyDashboardPlaceholder());
+    } else {
+        if (sumRow) mainChildren.push(sumRow);
+        if (cellPanels) mainChildren.push(cellPanels);
+        if (managementColumn) mainChildren.push(managementColumn);
+        if (gaugePanels) mainChildren.push(gaugePanels);
+        if (detailPanels) mainChildren.push(detailPanels);
+        if (thermalPanel) mainChildren.push(thermalPanel);
+    }
+
+    return E('div', { 'class': 'jodu-container' }, mainChildren);
 }
 
 function loadingPlaceholder() {
@@ -1081,6 +1203,92 @@ return view.extend({
                 children.push(E('div', { 'class': 'jodu-modal-hint' }, hint));
             }
             return E('div', { 'class': 'jodu-modal-field' }, children);
+        }
+
+        function openCustomizeModal() {
+            var vis = getWidgetVisibility();
+            var checkboxMap = {};
+
+            var items = WIDGET_CATALOG.map(function (w) {
+                var isChecked = vis[w.id] !== false;
+                var cb = E('input', { 'type': 'checkbox', 'checked': isChecked || null });
+                checkboxMap[w.id] = cb;
+
+                return E('label', { 'class': 'jodu-widget-item' }, [
+                    E('div', { 'style': 'display:flex;align-items:center;gap:12px;' }, [
+                        cb,
+                        E('span', { 'style': 'font-size:1.4em;line-height:1;' }, w.icon),
+                        E('div', { 'style': 'flex:1;' }, [
+                            E('div', { 'style': 'font-weight:700;color:#f8fafc;font-size:0.92em;' }, w.name),
+                            E('div', { 'style': 'color:#94a3b8;font-size:0.8em;margin-top:2px;' }, w.desc)
+                        ])
+                    ])
+                ]);
+            });
+
+            var quickActions = E('div', {
+                'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding:8px 12px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;gap:8px;'
+            }, [
+                E('span', { 'style': 'font-size:0.82em;color:#94a3b8;' }, 'Toggle sections on or off to personalize your dashboard layout:'),
+                E('div', { 'style': 'display:flex;gap:8px;' }, [
+                    E('button', {
+                        'class': 'btn jodu-btn-sm',
+                        'click': function () {
+                            WIDGET_CATALOG.forEach(function (w) {
+                                if (checkboxMap[w.id]) checkboxMap[w.id].checked = true;
+                            });
+                        }
+                    }, 'Show All'),
+                    E('button', {
+                        'class': 'btn jodu-btn-sm',
+                        'click': function () {
+                            WIDGET_CATALOG.forEach(function (w) {
+                                if (checkboxMap[w.id]) checkboxMap[w.id].checked = false;
+                            });
+                        }
+                    }, 'Hide All')
+                ])
+            ]);
+
+            var footer = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-top:18px;flex-wrap:wrap;gap:8px;' }, [
+                E('button', {
+                    'class': 'btn cbi-button-neutral',
+                    'click': function () {
+                        resetWidgetVisibility();
+                        ui.hideModal();
+                        notify('Widgets reset to defaults.', 'info', 3000);
+                        if (triggerRefresh) triggerRefresh();
+                    }
+                }, 'Reset Defaults'),
+                E('div', { 'style': 'display:flex;gap:8px;' }, [
+                    E('button', { 'class': 'btn', 'click': ui.hideModal }, 'Cancel'),
+                    E('button', {
+                        'class': 'btn cbi-button-positive',
+                        'click': function () {
+                            var newVis = {};
+                            WIDGET_CATALOG.forEach(function (w) {
+                                if (checkboxMap[w.id]) {
+                                    newVis[w.id] = !!checkboxMap[w.id].checked;
+                                }
+                            });
+                            try {
+                                if (typeof localStorage !== 'undefined') {
+                                    localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(newVis));
+                                }
+                            } catch (e) { }
+                            ui.hideModal();
+                            notify('Dashboard layout updated.', 'info', 3000);
+                            if (triggerRefresh) triggerRefresh();
+                        }
+                    }, 'Save Layout')
+                ])
+            ]);
+
+            ui.showModal('🎨 Customize Dashboard Widgets', [
+                quickActions,
+                E('div', { 'style': 'display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto;padding-right:4px;' }, items),
+                footer
+            ]);
         }
 
         function openSettingsModal() {
@@ -1615,6 +1823,12 @@ return view.extend({
             'click': ui.createHandlerFn(this, openAimingModal)
         }, '🎯 Aiming Mode');
 
+        var customizeBtn = E('button', {
+            'class': 'btn jodu-top-btn',
+            'style': 'background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.35);color:#c084fc;',
+            'click': ui.createHandlerFn(this, openCustomizeModal)
+        }, '🎨 Customize');
+
         var refreshBtn = E('button', {
             'class': 'btn jodu-top-btn',
             'click': ui.createHandlerFn(this, function () {
@@ -1649,6 +1863,8 @@ return view.extend({
             '.jodu-sum-sub { font-size:0.78em;color:#94a3b8;font-weight:500;margin-bottom:6px; }',
             '.jodu-sum-lbl { font-size:0.7em;letter-spacing:0.1em;text-transform:uppercase;color:#64748b;font-weight:700; }',
             '.jodu-grid-2col { display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:16px;margin-bottom:16px; }',
+            '.jodu-grid-auto { display:grid;grid-template-columns:repeat(auto-fit, minmax(380px, 1fr));gap:16px;margin-bottom:16px; }',
+            '@media (max-width:768px) { .jodu-grid-auto { grid-template-columns:1fr; } }',
             '.jodu-grid-3col { display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:16px;margin-bottom:16px; }',
             '.jodu-thermal-grid { display:grid;grid-template-columns:repeat(2, 1fr);gap:18px; }',
             '@media (max-width:768px) { .jodu-thermal-grid { grid-template-columns:1fr;gap:12px; } }',
@@ -1659,6 +1875,14 @@ return view.extend({
             '.jodu-card-icon { font-size:1.15em; }',
             '.jodu-card-title { font-size:0.95em;font-weight:700;color:#f8fafc;letter-spacing:0.02em; }',
             '.jodu-card-body { padding:16px; }',
+            '.jodu-panel-hide-btn { background:transparent;border:none;color:#64748b;font-size:0.95em;padding:2px 6px;border-radius:4px;cursor:pointer;line-height:1;transition:all 0.2s ease; }',
+            '.jodu-panel-hide-btn:hover { background:rgba(239,68,68,0.15);color:#f87171; }',
+            '.jodu-summary-wrapper { position:relative;margin-bottom:20px; }',
+            '.jodu-summary-hide-btn { position:absolute;top:-10px;right:0;z-index:2;background:rgba(15,23,42,0.85);border:1px solid rgba(255,255,255,0.12);color:#64748b;font-size:0.8em;padding:2px 7px;border-radius:6px;cursor:pointer;transition:all 0.2s ease; }',
+            '.jodu-summary-hide-btn:hover { background:rgba(239,68,68,0.2);color:#f87171;border-color:rgba(239,68,68,0.4); }',
+            '.jodu-empty-widgets-box { text-align:center;padding:60px 20px;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.1);border-radius:16px;margin:20px 0; }',
+            '.jodu-widget-item { display:block;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px 14px;cursor:pointer;transition:background 0.2s ease, border-color 0.2s ease; }',
+            '.jodu-widget-item:hover { background:rgba(255,255,255,0.05);border-color:rgba(56,189,248,0.3); }',
             '.jodu-table { width:100%;border-collapse:collapse;font-size:0.88em; }',
             '.jodu-tr { border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.15s ease; }',
             '.jodu-tr:hover { background:rgba(255,255,255,0.02); }',
@@ -1718,6 +1942,7 @@ return view.extend({
             E('div', { 'class': 'jodu-actions' }, [
                 toggleBtn,
                 aimingBtn,
+                customizeBtn,
                 refreshBtn,
                 settingsBtn
             ])
