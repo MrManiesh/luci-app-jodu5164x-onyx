@@ -22,6 +22,7 @@
 #   - perso_info    : Hardware provisioning and SIM personalization info
 #   - lock_status   : Current 5G NR cell lock configuration state
 #
+
 # Author: Manish Matwa Choudhary
 # License: GPL-3.0
 # =============================================================================

@@ -23,7 +23,8 @@
 # Output:
 #   "OK" on stdout on success.
 #
-# Author: Manish Matwa Choudhary
+# Originally created by: Anish (@anishthevictorious)
+# Modified by: Manish Matwa Choudhary
 # License: GPL-3.0
 # =============================================================================
 

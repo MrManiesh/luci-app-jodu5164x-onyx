@@ -8,7 +8,6 @@
 
 /* =============================================================================
    luci-app-jodu5164x-status - Advanced 5G ODU Dashboard
-   Author: Manish Matwa Choudhary
    ============================================================================= */
 
 var SCRIPT_PATH = '/usr/libexec/jodu5164x-data.sh';
@@ -1479,13 +1478,13 @@ return view.extend({
 
                 osc.start(audioCtx.currentTime);
                 osc.stop(audioCtx.currentTime + 0.13);
-            } catch (e) {}
+            } catch (e) { }
         }
 
         function closeAimingModal() {
             aimingSession.active = false;
             if (audioCtx && audioCtx.state !== 'closed') {
-                try { audioCtx.suspend(); } catch (e) {}
+                try { audioCtx.suspend(); } catch (e) { }
             }
             poll.remove(refreshNow);
             poll.add(refreshNow, currentPollInterval);

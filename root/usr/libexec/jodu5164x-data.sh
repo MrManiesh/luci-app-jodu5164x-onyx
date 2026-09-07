@@ -30,7 +30,8 @@
 #     - telnet_password : Optional Telnet login password
 #     - enabled         : 1 = Active Monitoring, 0 = Paused
 #
-# Author: Manish Matwa Choudhary
+# Originally created by: Anish (@anishthevictorious)
+# Modified by: Manish Matwa Choudhary
 # License: GPL-3.0
 # =============================================================================
 
