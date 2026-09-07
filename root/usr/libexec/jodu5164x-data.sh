@@ -50,6 +50,7 @@ ODU_PASS=$(uci -q get ${UCI_PKG}.main.password)
 TELNET_PORT=$(uci -q get ${UCI_PKG}.main.telnet_port)
 [ -z "$TELNET_PORT" ] && TELNET_PORT="23"
 
+TELNET_USER=$(uci -q get ${UCI_PKG}.main.telnet_username)
 TELNET_PASS=$(uci -q get ${UCI_PKG}.main.telnet_password)
 
 ENABLED=$(uci -q get ${UCI_PKG}.main.enabled)
@@ -169,6 +170,26 @@ read_sys_cache() {
     [ -s "$SYS_CACHE_FILE" ] && cat "$SYS_CACHE_FILE"
 }
 
+# Constructs friendly diagnostic error messages for Telnet
+get_telnet_message() {
+    case "$TELNET_STATUS" in
+        unreachable)
+            echo "Telnet is unreachable at ${ODU_HOST}:${TELNET_PORT}. Ensure Telnet is enabled on the ODU, or check IP and Port in Settings." ;;
+        auth_failed)
+            if [ -n "$TELNET_USER" ]; then
+                echo "Telnet authentication failed for user '${TELNET_USER}'. Verify your Telnet Username and Password in Settings."
+            else
+                echo "Telnet authentication failed. Verify your Telnet Password (or configure Telnet Username) in Settings."
+            fi ;;
+        username_required)
+            echo "This device requires a Telnet Username before password (e.g. root or admin). Please configure Telnet Username in Settings." ;;
+        no_client)
+            echo "Telnet client is missing on the router." ;;
+        *)
+            echo "" ;;
+    esac
+}
+
 # Constructs friendly diagnostic error messages when WebUI or Telnet fails
 emit_offline_diagnosis() {
     case "$WEBUI_STATUS" in
@@ -184,16 +205,7 @@ emit_offline_diagnosis() {
             webui_msg="Could not reach the ODU WebUI." ;;
     esac
 
-    case "$TELNET_STATUS" in
-        unreachable)
-            telnet_msg="Telnet is unreachable. Enable Telnet on the ODU, or check the IP/Port in Settings." ;;
-        auth_failed)
-            telnet_msg="Telnet connected but login failed. Check the Telnet Password in Settings." ;;
-        no_client)
-            telnet_msg="Telnet client is missing on the router." ;;
-        *)
-            telnet_msg="" ;;
-    esac
+    telnet_msg=$(get_telnet_message)
 
     webui_msg_esc=$(json_escape "$webui_msg")
     telnet_msg_esc=$(json_escape "$telnet_msg")
@@ -739,6 +751,9 @@ PACKET_LOSS=$(get_val "packet_loss" "$DEVICE_DATA")
 # -----------------------------------------------------------------------------
 # 9. Step 3: Emit Flat JSON Payload
 # -----------------------------------------------------------------------------
+TELNET_MSG=$(get_telnet_message)
+TELNET_MSG_ESC=$(json_escape "$TELNET_MSG")
+
 cat <<EOF
-{"server_link":"ONLINE","sim_status":"${SIM_STATUS}","operating_mode":"${OPERATING_MODE}","band":"${BAND}","bandwidth":"${BANDWIDTH}","arfcn":"${ARFCN}","pci":"${PCI}","plmn":"${PLMN}","rrc_state":"${RRC_STATE}","rsrp":"${RSRP}","rsrq":"${RSRQ}","sinr":"${SINR}","bler":"${BLER}","mimo":"${MIMO}","modulation":"${MODULATION}","cqi":"${CQI}","SCC_BAND":"${SCC_BAND}","SCC_BW":"${SCC_BW}","SCC_ARFCN":"${SCC_ARFCN}","SCC_PCI":"${SCC_PCI}","SCC_BLER":"${SCC_BLER}","SCC_MIMO":"${SCC_MIMO}","SCC_MODULATION":"${SCC_MODULATION}","SCC_CQI":"${SCC_CQI}","SCC_RSRP":"${SCC_RSRP}","SCC_RSRQ":"${SCC_RSRQ}","SCC_SINR":"${SCC_SINR}","eth_link_status":"${ETH_LINK_STATUS}","eth_speed":"${ETH_SPEED}","eth_duplex":"${ETH_DUPLEX}","eth_uptime":"${ETH_UPTIME}","data_sent":"${DATA_SENT}","data_received":"${DATA_RECEIVED}","packet_loss":"${PACKET_LOSS}","thermal_zones":${THERMAL_JSON},"odu_cpu_pct":"${CPU_PCT}","odu_cpu_user":"${PCT_USER}","odu_cpu_nice":"${PCT_NICE}","odu_cpu_system":"${PCT_SYSTEM}","odu_cpu_idle":"${PCT_IDLE}","odu_cpu_iowait":"${PCT_IOWAIT}","odu_cpu_irq":"${PCT_IRQ}","odu_cpu_softirq":"${PCT_SOFTIRQ}","odu_cpu_steal":"${PCT_STEAL}","odu_cpu_cores":"${CORES}","odu_cpu_model":"${CPU_MODEL_ESC}","odu_load1":"${LOAD1}","odu_load5":"${LOAD5}","odu_load15":"${LOAD15}","odu_tasks_running":"${TASKS_RUNNING}","odu_tasks_total":"${TASKS_TOTAL}","odu_uptime_sec":"${UPTIME_SEC}","odu_ctxt_rate":"${CTXT_RATE}","odu_intr_rate":"${INTR_RATE}","odu_conntrack_count":"${CONNTRACK_COUNT}","odu_conntrack_max":"${CONNTRACK_MAX}","odu_mem_total_kb":"${MEM_TOTAL_KB}","odu_mem_used_kb":"${MEM_USED_KB}","odu_mem_pct":"${MEM_PCT}","odu_mem_free_kb":"${MEM_FREE_KB}","odu_mem_cached_kb":"${MEM_CACHED_KB}","odu_mem_buffers_kb":"${MEM_BUFFERS_KB}","odu_mem_swap_total_kb":"${MEM_SWAP_TOTAL_KB}","odu_mem_swap_used_kb":"${MEM_SWAP_USED_KB}","nearby_cells":${NEARBY_CELLS_JSON},"cell_lock_status":"${CELL_LOCK_STATUS_ESC}","tac":"${TAC_ESC}","global_cell_id":"${GLOBAL_CELL_ID_ESC}","timing_advance":"${TIMING_ADVANCE}","webui_status":"${WEBUI_STATUS}","telnet_status":"${TELNET_STATUS}"}
+{"server_link":"ONLINE","sim_status":"${SIM_STATUS}","operating_mode":"${OPERATING_MODE}","band":"${BAND}","bandwidth":"${BANDWIDTH}","arfcn":"${ARFCN}","pci":"${PCI}","plmn":"${PLMN}","rrc_state":"${RRC_STATE}","rsrp":"${RSRP}","rsrq":"${RSRQ}","sinr":"${SINR}","bler":"${BLER}","mimo":"${MIMO}","modulation":"${MODULATION}","cqi":"${CQI}","SCC_BAND":"${SCC_BAND}","SCC_BW":"${SCC_BW}","SCC_ARFCN":"${SCC_ARFCN}","SCC_PCI":"${SCC_PCI}","SCC_BLER":"${SCC_BLER}","SCC_MIMO":"${SCC_MIMO}","SCC_MODULATION":"${SCC_MODULATION}","SCC_CQI":"${SCC_CQI}","SCC_RSRP":"${SCC_RSRP}","SCC_RSRQ":"${SCC_RSRQ}","SCC_SINR":"${SCC_SINR}","eth_link_status":"${ETH_LINK_STATUS}","eth_speed":"${ETH_SPEED}","eth_duplex":"${ETH_DUPLEX}","eth_uptime":"${ETH_UPTIME}","data_sent":"${DATA_SENT}","data_received":"${DATA_RECEIVED}","packet_loss":"${PACKET_LOSS}","thermal_zones":${THERMAL_JSON},"odu_cpu_pct":"${CPU_PCT}","odu_cpu_user":"${PCT_USER}","odu_cpu_nice":"${PCT_NICE}","odu_cpu_system":"${PCT_SYSTEM}","odu_cpu_idle":"${PCT_IDLE}","odu_cpu_iowait":"${PCT_IOWAIT}","odu_cpu_irq":"${PCT_IRQ}","odu_cpu_softirq":"${PCT_SOFTIRQ}","odu_cpu_steal":"${PCT_STEAL}","odu_cpu_cores":"${CORES}","odu_cpu_model":"${CPU_MODEL_ESC}","odu_load1":"${LOAD1}","odu_load5":"${LOAD5}","odu_load15":"${LOAD15}","odu_tasks_running":"${TASKS_RUNNING}","odu_tasks_total":"${TASKS_TOTAL}","odu_uptime_sec":"${UPTIME_SEC}","odu_ctxt_rate":"${CTXT_RATE}","odu_intr_rate":"${INTR_RATE}","odu_conntrack_count":"${CONNTRACK_COUNT}","odu_conntrack_max":"${CONNTRACK_MAX}","odu_mem_total_kb":"${MEM_TOTAL_KB}","odu_mem_used_kb":"${MEM_USED_KB}","odu_mem_pct":"${MEM_PCT}","odu_mem_free_kb":"${MEM_FREE_KB}","odu_mem_cached_kb":"${MEM_CACHED_KB}","odu_mem_buffers_kb":"${MEM_BUFFERS_KB}","odu_mem_swap_total_kb":"${MEM_SWAP_TOTAL_KB}","odu_mem_swap_used_kb":"${MEM_SWAP_USED_KB}","nearby_cells":${NEARBY_CELLS_JSON},"cell_lock_status":"${CELL_LOCK_STATUS_ESC}","tac":"${TAC_ESC}","global_cell_id":"${GLOBAL_CELL_ID_ESC}","timing_advance":"${TIMING_ADVANCE}","webui_status":"${WEBUI_STATUS}","telnet_status":"${TELNET_STATUS}","telnet_message":"${TELNET_MSG_ESC}"}
 EOF

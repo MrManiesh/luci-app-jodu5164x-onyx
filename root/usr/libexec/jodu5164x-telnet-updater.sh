@@ -47,6 +47,7 @@ fetch_once() {
     TELNET_PORT=$(uci -q get ${UCI_PKG}.main.telnet_port)
     [ -z "$TELNET_PORT" ] && TELNET_PORT="23"
 
+    TELNET_USER=$(uci -q get ${UCI_PKG}.main.telnet_username)
     TELNET_PASS=$(uci -q get ${UCI_PKG}.main.telnet_password)
 
     ENABLED=$(uci -q get ${UCI_PKG}.main.enabled)
@@ -95,15 +96,21 @@ fetch_once() {
         fi
     fi
 
-    # Execute Telnet interactive stream:
-    # Commands are sent as individual printf lines to prevent Linux PTY buffer
-    # truncation (which occurs when single piped commands exceed 1024 bytes).
-    OUT=$(
+    # Helper: Executes an interactive Telnet stream with given credentials
+    # Supports both d1 (direct password prompt) and d2 (username prompt then password).
+    exec_session() {
+        _user="$1"
+        _pass="$2"
         {
             sleep 1
-            # Send password if configured
-            if [ -n "$TELNET_PASS" ]; then
-                printf '%s\r\n' "$TELNET_PASS"
+            # Send username first if configured (e.g. d2)
+            if [ -n "$_user" ]; then
+                printf '%s\r\n' "$_user"
+                sleep 1
+            fi
+            # Send password if configured (direct on d1, or after username on d2)
+            if [ -n "$_pass" ]; then
+                printf '%s\r\n' "$_pass"
                 sleep 1
             fi
 
@@ -160,31 +167,51 @@ fetch_once() {
             printf 'exit\r\n'
             sleep 1
         } | $RUN 2>&1
-    )
+    }
 
-    # -------------------------------------------------------------------------
-    # Analyze Telnet Response & Determine Health Status
-    # -------------------------------------------------------------------------
-    STATUS="ok"
-    case "$OUT" in
-        *"Connection refused"*|*"onnection refused"*)
-            STATUS="unreachable" ;;
-        *"No route to host"*|*"Network is unreachable"*)
-            STATUS="unreachable" ;;
-        *"onnection timed out"*|*"Connection timed out"*|*"timed out"*|*"Operation timed out"*)
-            STATUS="unreachable" ;;
-        *"STAT1_BEGIN"*|*"TZ:"*|*"NEARBY_BEGIN"*)
-            STATUS="ok" ;;
-        *"Login incorrect"*|*"login incorrect"*|*"Password:"*|*"login:"*|*"Login:"*)
-            STATUS="auth_failed" ;;
-        *)
-            if [ -z "$OUT" ]; then
-                STATUS="unreachable"
-            else
-                STATUS="auth_failed"
-            fi
-            ;;
-    esac
+    # Helper: Parses raw output and categorizes Telnet session health
+    classify_response() {
+        _raw="$1"
+        case "$_raw" in
+            *"Connection refused"*|*"onnection refused"*|*"No route to host"*|*"Network is unreachable"*|*"timed out"*|*"Operation timed out"*)
+                printf 'unreachable' ;;
+            *"STAT1_BEGIN"*|*"TZ:"*|*"NEARBY_BEGIN"*)
+                printf 'ok' ;;
+            *"login:"*|*"Login:"*|*"username:"*|*"Username:"*|*"User:"*)
+                if [ -z "$TELNET_USER" ]; then
+                    printf 'username_required'
+                else
+                    printf 'auth_failed'
+                fi ;;
+            *"Login incorrect"*|*"login incorrect"*|*"Password:"*)
+                printf 'auth_failed' ;;
+            *)
+                if [ -z "$_raw" ]; then
+                    printf 'unreachable'
+                else
+                    printf 'auth_failed'
+                fi ;;
+        esac
+    }
+
+    # First attempt with configured credentials
+    OUT=$(exec_session "$TELNET_USER" "$TELNET_PASS")
+    STATUS=$(classify_response "$OUT")
+
+    # Smart Auto-Detection for d2 (Username Required):
+    # If the ODU asked for a login username and TELNET_USER was empty,
+    # automatically attempt standard username 'root' before giving up.
+    if [ "$STATUS" = "username_required" ] && [ -z "$TELNET_USER" ]; then
+        FALLBACK_OUT=$(exec_session "root" "$TELNET_PASS")
+        FALLBACK_STATUS=$(classify_response "$FALLBACK_OUT")
+        if [ "$FALLBACK_STATUS" = "ok" ]; then
+            OUT="$FALLBACK_OUT"
+            STATUS="ok"
+            # Auto-persist detected username so future cycles & scripts use it
+            uci set ${UCI_PKG}.main.telnet_username="root"
+            uci commit ${UCI_PKG} 2>/dev/null
+        fi
+    fi
 
     # -------------------------------------------------------------------------
     # Atomic Cache File Update

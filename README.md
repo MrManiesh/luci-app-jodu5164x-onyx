@@ -88,7 +88,6 @@ Originally created and conceptualized by **[Anish (@anishthevictorious)](https:/
 - **Settings Modal**: Configure ODU IP address, WebUI credentials, Telnet port/password, polling interval (1s to 10s), and automated daily scheduled reboot.
 - **CLI Diagnostics Tool**: Includes `/usr/libexec/jodu5164x-diag.sh <cmd>` for fast command-line diagnostics over SSH (`cell_location`, `signal`, `band`, `nearby`, etc.).
 
-
 1. **Dual-Pipeline Telemetry**:
    - **Native WebUI HTTP API**: Queries the ODU's built-in web services using HMAC-SHA256 challenge-response session authentication for Primary/Secondary cell parameters, LAN status, and traffic data.
    - **Background Telnet Daemon**: Runs under `procd` on OpenWrt, polling low-level diagnostics (`atcli`, `cricli`, thermal zones, `/proc/stat`, `/proc/meminfo`) every ~15 seconds into an atomic RAM cache (`/tmp/jodu5164x_sys_cache.raw`).
@@ -136,7 +135,7 @@ By default, the package connects to the ODU at `192.168.225.1` with default WebU
 
 To configure your credentials or network settings:
 1. Click the **⚙️ Settings** button at the top right of the 5G Dashboard.
-2. Enter your **ODU IP Address**, **WebUI Password**, and **Telnet Password**.
+2. Enter your **ODU IP Address**, **WebUI Password**, **Telnet Username** (if your device prompts for login first, e.g. `root`), and **Telnet Password**.
 3. Choose your preferred **Telemetry Polling Rate** (1s to 10s, default 3s).
 4. Optionally configure **Daily Scheduled Reboot** time.
 5. Click **Save & Apply**.
@@ -151,8 +150,17 @@ Open the Settings modal on the dashboard and enter your ODU WebUI password. The 
 </details>
 
 <details>
-<summary><b>The dashboard shows "Telnet is unreachable" or "auth_failed"</b></summary>
-Verify that Telnet is enabled on your ODU and that your router can reach port 23 on the ODU IP. If your ODU requires a Telnet login password, enter it in Settings under "Telnet Telemetry Service".
+<summary><b>The dashboard shows "Telnet Username Required" or "Telnet Authentication Failed"</b></summary>
+Some ODU firmware variants prompt for a login username (e.g. <code>root</code> or <code>admin</code>) before password, whereas other variants prompt directly for a password.
+<ul>
+  <li><b>If your device asks for username first:</b> Open Settings and enter your username (usually <code>root</code>) in <b>Telnet Username</b>, along with your password.</li>
+  <li><b>If your device directly asks for password:</b> Leave <b>Telnet Username</b> blank and only enter your <b>Telnet Password</b>.</li>
+</ul>
+</details>
+
+<details>
+<summary><b>The dashboard shows "Telnet is unreachable"</b></summary>
+Verify that Telnet is enabled on your ODU and that your router can reach port 23 on the ODU IP.
 </details>
 
 <details>

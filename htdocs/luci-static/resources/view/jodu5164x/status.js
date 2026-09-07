@@ -32,6 +32,7 @@ var aimingSession = {
     audioMuted: true
 };
 var triggerRefresh = null;
+var openSettings = null;
 var currentPollInterval = 3;
 
 var WIDGET_CATALOG = [
@@ -1141,8 +1142,35 @@ function renderDashboard(data) {
         thermalSection(data, 'thermal')
     ]) : null;
 
-    var telnetNotice = (data.telnet_status && data.telnet_status !== 'ok') ? E('div', { 'class': 'alert-message warning', 'style': 'margin-bottom:16px;' },
-        '⚠️ Telnet Notice: ' + (data.telnet_message || 'Telnet telemetry paused — check credentials in Settings.')) : '';
+    var telnetNotice = '';
+    if (data.telnet_status && data.telnet_status !== 'ok') {
+        var isUserReq = data.telnet_status === 'username_required';
+        var bannerIcon = isUserReq ? '👤' : (data.telnet_status === 'unreachable' ? '🔌' : '🔐');
+        var bannerTitle = isUserReq ? 'Telnet Username Required' : (data.telnet_status === 'unreachable' ? 'Telnet Service Unreachable' : 'Telnet Authentication Failed');
+        var bannerDesc = data.telnet_message || (isUserReq ? 'This ODU prompts for a username first (e.g. root on d2). Click Settings to enter your Telnet Username.' : 'Telnet login failed. Check your Telnet credentials in Settings.');
+
+        telnetNotice = E('div', {
+            'style': 'background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);border-radius:12px;padding:12px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;box-shadow:0 4px 14px rgba(0,0,0,0.25);'
+        }, [
+            E('div', { 'style': 'display:flex;align-items:center;gap:12px;' }, [
+                E('span', { 'style': 'font-size:1.6em;line-height:1;' }, bannerIcon),
+                E('div', {}, [
+                    E('div', { 'style': 'color:#f87171;font-weight:700;font-size:0.94em;margin-bottom:2px;' }, bannerTitle),
+                    E('div', { 'style': 'color:#cbd5e1;font-size:0.84em;line-height:1.45;' }, bannerDesc)
+                ])
+            ]),
+            E('button', {
+                'class': 'btn cbi-button-action',
+                'style': 'background:#3b82f6;border:none;color:#ffffff;font-size:0.84em;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s;',
+                'click': function () {
+                    if (openSettings) openSettings();
+                }
+            }, [
+                E('span', {}, '⚙️'),
+                'Configure Settings'
+            ])
+        ]);
+    }
 
     var hasAnyWidget = (sumRow != null) || (cellPanels != null) || (managementColumn != null) ||
         (gaugePanels != null) || (detailPanels != null) || (thermalPanel != null);
@@ -1318,6 +1346,7 @@ return view.extend({
                 var username = uci.get('jodu5164x', 'main', 'username') || '';
                 var password = uci.get('jodu5164x', 'main', 'password') || '';
                 var telnetPort = uci.get('jodu5164x', 'main', 'telnet_port') || '23';
+                var telnetUser = uci.get('jodu5164x', 'main', 'telnet_username') || '';
                 var telnetPass = uci.get('jodu5164x', 'main', 'telnet_password') || '';
                 var rebootEnabled = uci.get('jodu5164x', 'main', 'reboot_schedule_enabled') === '1';
                 var rebootTime = uci.get('jodu5164x', 'main', 'reboot_schedule_time') || '03:00';
@@ -1328,6 +1357,7 @@ return view.extend({
                 var userInput = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'value': username, 'style': inputStyle, 'placeholder': 'Admin' });
                 var passInput = E('input', { 'type': 'password', 'class': 'cbi-input-password', 'value': password, 'style': inputStyle });
                 var portInput = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'value': telnetPort, 'style': inputStyle, 'placeholder': '23' });
+                var telnetUserInput = E('input', { 'type': 'text', 'class': 'cbi-input-text', 'value': telnetUser, 'style': inputStyle, 'placeholder': 'Leave blank for d1, or enter root/admin for d2' });
                 var telnetPassInput = E('input', { 'type': 'password', 'class': 'cbi-input-password', 'value': telnetPass, 'style': inputStyle, 'placeholder': 'Leave blank if none' });
                 var rebootEnabledInput = E('input', { 'type': 'checkbox', 'checked': rebootEnabled || null });
                 var rebootTimeInput = E('input', { 'type': 'time', 'class': 'cbi-input-text', 'value': rebootTime, 'style': inputStyle });
@@ -1357,7 +1387,8 @@ return view.extend({
 
                 var secTelnet = modalSection('Telnet Telemetry Service', '⚡', [
                     field('Telnet Port', portInput),
-                    field('Telnet Password', telnetPassInput, 'Leave blank if no telnet password is configured on ODU')
+                    field('Telnet Username', telnetUserInput, 'Required if your ODU prompts for a login username first (e.g. root on d2). Leave blank if ODU directly asks for password (d1).'),
+                    field('Telnet Password', telnetPassInput, 'Telnet login password configured on ODU. Leave blank if none.')
                 ]);
 
                 var secPoll = modalSection('Telemetry Polling Rate', '⏱️', [
@@ -1388,7 +1419,8 @@ return view.extend({
                                     telnetPassInput.value,
                                     rebootEnabledInput.checked ? '1' : '0',
                                     rebootTimeInput.value || '03:00',
-                                    intervalInput.value || '3'
+                                    intervalInput.value || '3',
+                                    telnetUserInput.value.trim()
                                 ];
                                 return fs.exec_direct('/usr/libexec/jodu5164x-set-config.sh', args).then(function (res) {
                                     if (!res || res.indexOf('OK') === -1) {
@@ -1415,6 +1447,7 @@ return view.extend({
                 ]);
             });
         }
+        openSettings = openSettingsModal;
 
         var audioCtx = null;
         function playAimingBeep(rsrp) {

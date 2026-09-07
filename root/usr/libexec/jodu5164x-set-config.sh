@@ -18,6 +18,7 @@
 #   $6 = reboot_schedule_enabled  (0 = disabled, 1 = enabled)
 #   $7 = reboot_schedule_time     (HH:MM 24-hour format, e.g. 03:00)
 #   $8 = poll_interval            (1 to 10 seconds, default: 3)
+#   $9 = telnet_username          (Optional Telnet username for devices like d2)
 #
 # Output:
 #   "OK" on stdout on success.
@@ -38,6 +39,7 @@ uci set ${UCI_PKG}.main.username="$2"
 uci set ${UCI_PKG}.main.password="$3"
 uci set ${UCI_PKG}.main.telnet_port="$4"
 uci set ${UCI_PKG}.main.telnet_password="$5"
+uci set ${UCI_PKG}.main.telnet_username="$9"
 uci set ${UCI_PKG}.main.reboot_schedule_enabled="$6"
 uci set ${UCI_PKG}.main.reboot_schedule_time="$7"
 

@@ -33,7 +33,8 @@ ODU_HOST=$(uci -q get ${UCI_PKG}.main.host)
 TELNET_PORT=$(uci -q get ${UCI_PKG}.main.telnet_port)
 [ -z "$TELNET_PORT" ] && TELNET_PORT="23"
 
-# Read Telnet login password from UCI (if configured)
+# Read Telnet credentials from UCI
+TELNET_USER=$(uci -q get ${UCI_PKG}.main.telnet_username)
 TELNET_PASS=$(uci -q get ${UCI_PKG}.main.telnet_password)
 
 # -----------------------------------------------------------------------------
@@ -96,7 +97,12 @@ fi
 OUT=$(
 {
     sleep 1
-    # Send Telnet password if configured
+    # Send Telnet username if configured (required on d2)
+    if [ -n "$TELNET_USER" ]; then
+        printf '%s\r\n' "$TELNET_USER"
+        sleep 1
+    fi
+    # Send Telnet password if configured (direct on d1, or after username on d2)
     if [ -n "$TELNET_PASS" ]; then
         printf '%s\r\n' "$TELNET_PASS"
         sleep 1
