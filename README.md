@@ -7,6 +7,7 @@
 [![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-status/releases)
 [![OpenWrt](https://img.shields.io/badge/OpenWrt-23.05%20%7C%2024.10-success.svg)](https://openwrt.org)
 [![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-Compatible-success.svg)](https://immortalwrt.org)
+[![Original Author](https://img.shields.io/badge/Original%20Author-anishthevictorious-181717?style=flat&logo=github&logoColor=white)](https://github.com/anishthevictorious)
 [![Telegram](https://img.shields.io/badge/Telegram-@Zeetron-2CA5E0?logo=telegram&logoColor=white)](https://t.me/Zeetron)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-orange.svg)](LICENSE)
 
@@ -28,7 +29,7 @@ A modern, responsive LuCI web dashboard extension designed specifically for **Se
 
 When using a 5G Outdoor Unit (CPE) connected to your OpenWrt router, monitoring 5G signal quality, determining connected cell tower metrics, or locking to a less congested tower usually requires manual Telnet sessions or dealing with the ODU's single-login WebUI restrictions.
 
-**luci-app-jodu5164x-status** brings complete visibility and control directly into your OpenWrt LuCI interface with a real-time, non-blocking telemetry dashboard.
+Originally created and conceptualized by **[Anish (@anishthevictorious)](https://github.com/anishthevictorious)**, This repository builds upon Anish's original work, introducing a new UI, customizable modular widgets, antenna aiming with Web Audio beeper feedback, and few other features.
 
 ---
 
@@ -40,13 +41,6 @@ When using a 5G Outdoor Unit (CPE) connected to your OpenWrt router, monitoring 
 - **Full Radio Parameters**: Modulation (DL/UL QAM), MIMO layers (e.g. 4x4), DL Block Error Rate (**BLER %**), and NR-ARFCN channel.
 - **Top Summary Cards**: Instant glance at Network Operator (PLMN), Signal Strength, Radio Purity, and Ethernet link speed.
 
-### 📏 Tower Distance Estimator (Timing Advance)
-- Automatically converts 5G NR Timing Advance ($N_{TA}$) into an estimated physical distance to the serving gNodeB cell tower based on 3GPP standards ($\approx 78.12\text{ m}$ per TA unit).
-- Formatted clearly in real time:
-  - `TA: 0 (~0 m to gNodeB)` (Line of sight / near tower)
-  - `TA: 3 (~234 m to gNodeB)`
-  - `TA: 15 (~1172 m / 1.17 km to gNodeB)`
-- Displayed both in the Primary Cell table and inside the Outdoor Antenna Aiming mode modal.
 
 ### 🛰️ Cell Location & Tower Identifiers
 - Automatically extracts and displays:
@@ -69,7 +63,7 @@ When using a 5G Outdoor Unit (CPE) connected to your OpenWrt router, monitoring 
   - **1-Second Real-Time Alignment Polling**: Automatically accelerates polling to 1-second intervals while aiming mode is open.
   - **Live Web Audio Beeper**: Emits pitch-modulated audio beeps directly through your browser via the HTML5 Web Audio API. As signal peaks, the audio pitch rises and the beep interval accelerates for **100% hands-free** antenna alignment!
   - **Peak Value & Delta Baseline Memory**: Tracks your session starting baseline and records peak RSRP and SINR values with live delta badges (`▲ +X dBm` / `▼ -X dBm`).
-  - **Serving Cell Context & Tower Distance**: Displays active Band, PCI, ARFCN, and real-time distance (`TA: <val> (~<dist> to gNodeB)`).
+  - **Serving Cell Context**: Displays active Band, PCI, ARFCN
   - **Handover Detector**: Instant warning banner if the modem unexpectedly hops to a different PCI while rotating the antenna.
 
 ### 🔒 Cell & Frequency Locking
@@ -94,33 +88,6 @@ When using a 5G Outdoor Unit (CPE) connected to your OpenWrt router, monitoring 
 - **Settings Modal**: Configure ODU IP address, WebUI credentials, Telnet port/password, polling interval (1s to 10s), and automated daily scheduled reboot.
 - **CLI Diagnostics Tool**: Includes `/usr/libexec/jodu5164x-diag.sh <cmd>` for fast command-line diagnostics over SSH (`cell_location`, `signal`, `band`, `nearby`, etc.).
 
----
-
-## 🛠️ Architecture & How It Works
-
-```
-┌───────────────────────────────────────────────────────────┐
-│                   OpenWrt Router (LuCI)                   │
-│                                                           │
-│  ┌───────────────────────┐     ┌───────────────────────┐  │
-│  │   LuCI Web Interface  │     │   jodu5164x-updater   │  │
-│  │      (status.js)      │     │    (procd daemon)     │  │
-│  └───────────┬───────────┘     └───────────┬───────────┘  │
-│              │ calls                       │ background   │
-│              ▼                             │ poll (~15s)  │
-│  ┌───────────────────────┐                 │              │
-│  │   jodu5164x-data.sh   │◄────────────────┘              │
-│  │ (Combined Aggregator) │  reads /tmp/jodu5164x_sys_cache│
-│  └───────────┬───────────┘                                │
-└──────────────┼─────────────────────────────┼──────────────┘
-               │ Native WebUI                │ Telnet CLI
-               │ JSON API (Port 80)          │ (Port 23)
-               ▼                             ▼
-┌───────────────────────────────────────────────────────────┐
-│               Sercomm 5G ODU (JODU5164x)                  │
-│  - Native HTTP WebUI (HMAC-SHA256 challenge auth)         │
-│  - Internal Qualcomm/Sercomm diagnostic CLI (cricli/atcli) │
-└───────────────────────────────────────────────────────────┘
 ```
 
 1. **Dual-Pipeline Telemetry**:
@@ -141,9 +108,6 @@ When using a 5G Outdoor Unit (CPE) connected to your OpenWrt router, monitoring 
 | **Router OS** | OpenWrt 23.05, OpenWrt 24.10, ImmortalWrt (all CPU architectures) |
 | **Package Format** | Compatible with both APK (`apk add`) and IPK (`opkg`) |
 | **Dependencies** | `luci-base`, `curl`, `openssl-util`, `telnet-bsd`, `luci-compat` |
-
-> [!NOTE]
-> `openssl-util` and `curl` are required to perform the HMAC-SHA256 challenge-response authentication against the ODU WebUI API.
 
 ---
 
@@ -222,8 +186,33 @@ This package is specifically tailored for Sercomm JODU5164x series ODUs (JODU516
 
 ---
 
+## 👑 Original Author & Attribution
+
+> [!NOTE]
+> ### 🌟 Heartfelt Credit to the Original Creator
+> Sincere credit, gratitude, and recognition go to **Anish** ([@anishthevictorious](https://github.com/anishthevictorious/))
+> 
+> **This repository is an evolved continuation built upon Anish's foundational work**, introducing:
+> - **Redesigned New UI**: High-contrast, glanceable telemetry cards, glowing KPI ribbons, and dynamic responsive auto-fit grid.
+> - **Modular Dynamic Widgets**: Toggable widgets with personalized dashboard layout persistence and on-demand resource querying.
+> - **Outdoor Antenna Alignment Mode**: Real-time 1-second alignment polling with hands-free pitch-modulated Web Audio beeper.
+> - **Advanced Cellular Insights**: 5G TAC & NCI formatting, and multi-band Carrier Aggregation (CA) aggregate bandwidth calculations.
+> - **Performance Architecture**: Dedicated background caching daemon (`jodu5164x-updater`) running under `procd` ensuring instantaneous sub-50ms LuCI execution without browser timeout risks.
+
+<div align="center">
+
+| Role | Author | Links |
+|:---|:---|:---|
+| 🏛️ **Original Creator (Base Project)** | **Anish** | [![GitHub](https://img.shields.io/badge/GitHub-anishthevictorious-181717?style=flat&logo=github&logoColor=white)](https://github.com/anishthevictorious) [![Telegram](https://img.shields.io/badge/Telegram-@anish_iii-2CA5E0?style=flat&logo=telegram&logoColor=white)](https://t.me/anish_iii)  |
+| 🎨 **UI Overhaul & Feature Additions** | **Manish Matwa Choudhary** | [![GitHub](https://img.shields.io/badge/GitHub-MrManiesh-181717?style=flat&logo=github&logoColor=white)](https://github.com/MrManiesh) [![Telegram](https://img.shields.io/badge/Telegram-@Zeetron-2CA5E0?style=flat&logo=telegram&logoColor=white)](https://t.me/Zeetron) |
+
+</div>
+
+---
+
 ## 📄 License & Maintainer
 
 - **License**: Distributed under the [GNU General Public License v3.0](LICENSE).
-- **Maintainer**: Manish Matwa Choudhary ([@Zeetron](https://t.me/Zeetron))
+- **Original Base Project**: Created by [Anish (@anishthevictorious)](https://github.com/anishthevictorious)
+- **Current Maintainer**: Manish Matwa Choudhary ([@Zeetron](https://t.me/Zeetron) / [@MrManiesh](https://github.com/MrManiesh))
 - **Project**: OpenWrt LuCI 5G CPE Dashboard.
