@@ -231,7 +231,8 @@ function summaryRow(data, online) {
         var noSim = data.sim_status === 'missing';
         var speedCol = ethSpeedColor(data.eth_speed);
         var netSub = (data.plmn || '405-874') + (data.operating_mode ? ' · NR5G-' + data.operating_mode : '') + (data.band ? ' · B' + data.band : '');
-        var sigSub = qualityPct != null ? (qualityPct + '% · ' + (qualityPct >= 75 ? 'Excellent Coverage' : (qualityPct >= 45 ? 'Good Signal' : 'Weak Signal'))) : 'Sampling...';
+        var barsInfo = (data.signal_strength && data.signal_strength !== '--' && data.signal_strength !== 'NA') ? ' (' + data.signal_strength + '/5 Bars)' : '';
+        var sigSub = (qualityPct != null ? (qualityPct + '% · ' + (qualityPct >= 75 ? 'Excellent Coverage' : (qualityPct >= 45 ? 'Good Signal' : 'Weak Signal'))) : 'Sampling...') + barsInfo;
         var sinrVal = (data.sinr && data.sinr !== 'NA' && data.sinr !== '--') ? data.sinr + ' dB SINR' : 'NA';
         var puritySub = (data.rsrq && data.rsrq !== 'NA' && data.rsrq !== '--') ? 'RSRQ: ' + data.rsrq + ' dB' : 'Carrier Sync Active';
         var ethSub = (data.eth_link_status ? 'Link: ' + data.eth_link_status : 'Port Active') + (data.eth_duplex ? ' · ' + data.eth_duplex : '');
@@ -385,6 +386,11 @@ function cellTable(prefix, d) {
         rows.push(paramRow('Global Cell ID', cidFormatted));
         rows.push(paramRow('Tracking Area Code (TAC)', tacFormatted));
         rows.push(paramRow('Tower Distance (TA)', distStr, (distStr && distStr !== '--') ? COLOR_GOOD : null));
+        if (d['signal_strength'] && d['signal_strength'] !== '--' && d['signal_strength'] !== 'NA') {
+            var barsVal = parseInt(d['signal_strength'], 10);
+            var barColor = (!isNaN(barsVal) && barsVal >= 4) ? COLOR_GOOD : ((!isNaN(barsVal) && barsVal >= 2) ? COLOR_OK : COLOR_POOR);
+            rows.push(paramRow('Signal Level', d['signal_strength'] + ' / 5 Bars' + (!isNaN(barsVal) ? (barsVal >= 4 ? ' (Strong)' : (barsVal >= 2 ? ' (Moderate)' : ' (Low)')) : ''), barColor));
+        }
     } else if (caActive && totalBw > 0) {
         rows.push(paramRow('Aggregate Bandwidth', 'Total: ' + totalBw + ' MHz DL (' + (pBw > 0 ? pBw + ' MHz PCC + ' : '') + sBw + ' MHz SCC)', COLOR_PURPLE));
     }

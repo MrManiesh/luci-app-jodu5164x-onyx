@@ -3,3 +3,5 @@ custom-feed/
 *.tmp
 *.apk
 *.ipk
+scratch/
+
