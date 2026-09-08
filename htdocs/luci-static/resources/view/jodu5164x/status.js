@@ -32,10 +32,11 @@ var aimingSession = {
 };
 var triggerRefresh = null;
 var openSettings = null;
+var openCustomizeModal = null;
 var currentPollInterval = 3;
 
 var WIDGET_CATALOG = [
-    { id: 'summary', name: 'Quick Metrics Summary', desc: 'Top summary cards (Network, Signal, Radio Purity, Ethernet link)', icon: '📶' },
+    { id: 'summary', name: 'Quick Metrics Summary', desc: 'Top summary cards (Network, Signal Power, Radio Purity, Signal Level)', icon: '📶' },
     { id: 'primary_cell', name: 'Primary Cell Parameters', desc: 'Primary serving cell radio parameters, TAC, Cell ID, Tower Distance', icon: '📡' },
     { id: 'secondary_cell', name: 'Secondary Cell (Carrier Aggregation)', desc: 'Secondary carrier metrics and aggregate bandwidth clarification', icon: '⚡' },
     { id: 'nearby_cells', name: 'Nearby Cells & Sector Scan', desc: 'Neighbouring sector towers with 1-click lock and unlock buttons', icon: '🛰️' },
@@ -47,7 +48,21 @@ var WIDGET_CATALOG = [
     { id: 'thermal', name: 'Internal Thermal Sensors', desc: 'Multi-zone temperature grid and hottest sensor alert', icon: '🌡️' }
 ];
 
+var DEFAULT_WIDGET_VISIBILITY = {
+    summary: true,
+    primary_cell: true,
+    secondary_cell: true,
+    nearby_cells: true,
+    eth_mgmt: true,
+    cpu_gauge: false,
+    memory: false,
+    cpu_detail: false,
+    data_usage: false,
+    thermal: false
+};
+
 var WIDGET_STORAGE_KEY = 'jodu5164x_widget_visibility_v1';
+var DISCOVER_DISMISSED_KEY = 'jodu5164x_discover_dismissed_v1';
 
 function getWidgetVisibility() {
     try {
@@ -61,7 +76,8 @@ function getWidgetVisibility() {
 
 function isWidgetVisible(id) {
     var map = getWidgetVisibility();
-    return map[id] !== false;
+    if (map[id] !== undefined) return !!map[id];
+    return DEFAULT_WIDGET_VISIBILITY[id] !== false;
 }
 
 function setWidgetVisibility(id, visible) {
@@ -77,9 +93,68 @@ function setWidgetVisibility(id, visible) {
 function resetWidgetVisibility() {
     try {
         if (typeof localStorage !== 'undefined') {
-            localStorage.removeItem(WIDGET_STORAGE_KEY);
+            localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(DEFAULT_WIDGET_VISIBILITY));
+            localStorage.removeItem(DISCOVER_DISMISSED_KEY);
         }
     } catch (e) { }
+}
+
+function buildDiscoverBanner() {
+    try {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem(DISCOVER_DISMISSED_KEY) === '1') {
+            return null;
+        }
+    } catch (e) { }
+
+    var disabledCount = 0;
+    ['cpu_gauge', 'memory', 'cpu_detail', 'data_usage', 'thermal'].forEach(function (id) {
+        if (!isWidgetVisible(id)) disabledCount++;
+    });
+    if (disabledCount === 0) return null;
+
+    return E('div', {
+        'class': 'jodu-discover-banner',
+        'style': 'margin-bottom:16px;padding:12px 16px;background:linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(139,92,246,0.16) 50%, rgba(6,182,212,0.12) 100%);border:1px solid rgba(139,92,246,0.45);border-radius:12px;box-shadow:0 0 16px rgba(139,92,246,0.15);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;'
+    }, [
+        E('div', { 'style': 'display:flex;align-items:center;gap:12px;flex:1;min-width:280px;' }, [
+            E('div', { 'style': 'font-size:1.8em;line-height:1;filter:drop-shadow(0 0 6px rgba(250,204,21,0.6));' }, '✨'),
+            E('div', {}, [
+                E('div', { 'style': 'font-weight:700;color:#f8fafc;font-size:0.96em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;' }, [
+                    'Discover More Telemetry Widgets',
+                    E('span', { 'class': 'jodu-badge', 'style': 'background:rgba(139,92,246,0.25);color:#c084fc;border:1px solid rgba(139,92,246,0.4);font-size:0.7em;' }, disabledCount + ' Extra Features Paused')
+                ]),
+                E('div', { 'style': 'color:#cbd5e1;font-size:0.83em;margin-top:3px;line-height:1.4;' },
+                    'CPU Gauge, RAM Telemetry, CPU Detailed Breakdown, Bandwidth Tracker, and Thermal Sensors are paused by default for ultra-lightweight performance.'
+                )
+            ])
+        ]),
+        E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
+            E('button', {
+                'class': 'btn cbi-button-action',
+                'style': 'background:linear-gradient(135deg, #3b82f6, #8b5cf6);color:#fff;font-weight:700;font-size:0.85em;padding:7px 14px;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 10px rgba(139,92,246,0.3);display:inline-flex;align-items:center;gap:6px;',
+                'click': function () {
+                    if (openCustomizeModal) openCustomizeModal();
+                }
+            }, [
+                E('span', {}, '🎨'),
+                'Explore & Enable Widgets'
+            ]),
+            E('button', {
+                'class': 'btn',
+                'title': 'Dismiss this reminder',
+                'style': 'background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;font-size:0.9em;cursor:pointer;',
+                'click': function (ev) {
+                    ev.stopPropagation();
+                    try {
+                        if (typeof localStorage !== 'undefined') {
+                            localStorage.setItem(DISCOVER_DISMISSED_KEY, '1');
+                        }
+                    } catch (e) { }
+                    if (triggerRefresh) triggerRefresh();
+                }
+            }, '✕')
+        ])
+    ]);
 }
 
 function buildAutoGrid(elements) {
@@ -190,12 +265,42 @@ function signalQualityPercent(rsrp) {
     return Math.round(pct);
 }
 
-function summaryCard(label, value, color, sublabel, icon) {
+function renderSignalBars(barsCount, color) {
+    var count = parseInt(barsCount, 10);
+    if (isNaN(count) || count < 0) count = 0;
+    if (count > 5) count = 5;
+
+    var col = color || (count >= 4 ? COLOR_GOOD : (count >= 2 ? COLOR_OK : (count === 0 ? COLOR_NEUTRAL : COLOR_POOR)));
+    var heights = [6, 10, 14, 18, 22];
+    var bars = [];
+
+    for (var i = 0; i < 5; i++) {
+        var active = (i < count);
+        bars.push(E('span', {
+            'style': 'display:inline-block;width:5px;height:' + heights[i] + 'px;border-radius:1.5px;background:' +
+                (active ? col : 'rgba(255,255,255,0.18)') + ';' +
+                (active ? 'box-shadow:0 0 6px ' + col + '60;' : '')
+        }));
+    }
+
+    return E('div', { 'style': 'display:inline-flex;align-items:flex-end;gap:3px;height:22px;margin-right:6px;' }, bars);
+}
+
+function summaryCard(label, value, color, sublabel, icon, visualElem) {
     var children = [];
     if (icon) {
         children.push(E('div', { 'class': 'jodu-sum-icon' }, icon));
     }
-    children.push(E('div', { 'class': 'jodu-sum-val', 'style': 'color:' + (color || '#f8fafc') }, value));
+    var valContent;
+    if (visualElem) {
+        valContent = E('div', { 'style': 'display:inline-flex;align-items:center;gap:6px;' }, [
+            visualElem,
+            E('span', {}, value)
+        ]);
+    } else {
+        valContent = value;
+    }
+    children.push(E('div', { 'class': 'jodu-sum-val', 'style': 'color:' + (color || '#f8fafc') }, valContent));
     if (sublabel) {
         children.push(E('div', { 'class': 'jodu-sum-sub' }, sublabel));
     }
@@ -221,28 +326,31 @@ function summaryRow(data, online) {
     if (!online) {
         cards = [
             summaryCard('NETWORK', 'OFFLINE', COLOR_POOR, 'ODU Unreachable', '📡'),
-            summaryCard('SIGNAL STRENGTH', '--', COLOR_NEUTRAL, 'No connection', '📶'),
+            summaryCard('SIGNAL STRENGTH', '--', COLOR_NEUTRAL, 'No connection', '📡'),
             summaryCard('RADIO PURITY', '--', COLOR_NEUTRAL, 'Telemetry paused', '⚡'),
-            summaryCard('ETHERNET LINK', formatSpeed(data.eth_speed), COLOR_NEUTRAL, data.eth_link_status || 'Disconnected', '🔌')
+            summaryCard('SIGNAL LEVEL', '--', COLOR_NEUTRAL, 'No connection', '📶', renderSignalBars(0, COLOR_NEUTRAL))
         ];
     } else {
         var qualityPct = signalQualityPercent(data.rsrp);
-        var qualityColorVal = qualityPct == null ? COLOR_NEUTRAL : (qualityPct >= 70 ? COLOR_GOOD : (qualityPct >= 40 ? COLOR_OK : COLOR_POOR));
         var noSim = data.sim_status === 'missing';
-        var speedCol = ethSpeedColor(data.eth_speed);
         var netSub = (data.plmn || '405-874') + (data.operating_mode ? ' · NR5G-' + data.operating_mode : '') + (data.band ? ' · B' + data.band : '');
-        var barsInfo = (data.signal_strength && data.signal_strength !== '--' && data.signal_strength !== 'NA') ? ' (' + data.signal_strength + '/5 Bars)' : '';
-        var sigSub = (qualityPct != null ? (qualityPct + '% · ' + (qualityPct >= 75 ? 'Excellent Coverage' : (qualityPct >= 45 ? 'Good Signal' : 'Weak Signal'))) : 'Sampling...') + barsInfo;
+        var sigSub = qualityPct != null ? (qualityPct + '% · ' + (qualityPct >= 75 ? 'Excellent Coverage' : (qualityPct >= 45 ? 'Good Signal' : 'Weak Signal'))) : 'Sampling...';
         var sinrVal = (data.sinr && data.sinr !== 'NA' && data.sinr !== '--') ? data.sinr + ' dB SINR' : 'NA';
         var puritySub = (data.rsrq && data.rsrq !== 'NA' && data.rsrq !== '--') ? 'RSRQ: ' + data.rsrq + ' dB' : 'Carrier Sync Active';
-        var ethSub = (data.eth_link_status ? 'Link: ' + data.eth_link_status : 'Port Active') + (data.eth_duplex ? ' · ' + data.eth_duplex : '');
+
+        var rawBars = parseInt(data.signal_strength, 10);
+        var hasBars = !isNaN(rawBars) && rawBars >= 0 && data.signal_strength !== '--';
+        var barsVal = hasBars ? rawBars : 0;
+        var barsColor = hasBars ? (barsVal >= 4 ? COLOR_GOOD : (barsVal >= 2 ? COLOR_OK : (barsVal === 0 ? COLOR_NEUTRAL : COLOR_POOR))) : COLOR_NEUTRAL;
+        var barsQuality = hasBars ? (barsVal >= 4 ? 'Strong Signal' : (barsVal >= 2 ? 'Moderate Signal' : 'Low Coverage')) : 'Sampling...';
+        var barsSub = hasBars ? (barsVal + '/5 Bars · ' + barsQuality) : 'Cellular Level';
 
         cards = [
             noSim ? summaryCard('NETWORK', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM', '📱') :
                 summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, '📡'),
-            summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', qualityColor('rsrp', data.rsrp), sigSub, '📶'),
+            summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', qualityColor('rsrp', data.rsrp), sigSub, '📡'),
             summaryCard('RADIO PURITY', sinrVal, qualityColor('sinr', data.sinr), puritySub, '⚡'),
-            summaryCard('ETHERNET LINK', formatSpeed(data.eth_speed), speedCol, ethSub, '🔌')
+            summaryCard('SIGNAL LEVEL', hasBars ? (barsVal + ' / 5') : 'NA', barsColor, barsSub, '📶', renderSignalBars(barsVal, barsColor))
         ];
     }
 
@@ -386,11 +494,6 @@ function cellTable(prefix, d) {
         rows.push(paramRow('Global Cell ID', cidFormatted));
         rows.push(paramRow('Tracking Area Code (TAC)', tacFormatted));
         rows.push(paramRow('Tower Distance (TA)', distStr, (distStr && distStr !== '--') ? COLOR_GOOD : null));
-        if (d['signal_strength'] && d['signal_strength'] !== '--' && d['signal_strength'] !== 'NA') {
-            var barsVal = parseInt(d['signal_strength'], 10);
-            var barColor = (!isNaN(barsVal) && barsVal >= 4) ? COLOR_GOOD : ((!isNaN(barsVal) && barsVal >= 2) ? COLOR_OK : COLOR_POOR);
-            rows.push(paramRow('Signal Level', d['signal_strength'] + ' / 5 Bars' + (!isNaN(barsVal) ? (barsVal >= 4 ? ' (Strong)' : (barsVal >= 2 ? ' (Moderate)' : ' (Low)')) : ''), barColor));
-        }
     } else if (caActive && totalBw > 0) {
         rows.push(paramRow('Aggregate Bandwidth', 'Total: ' + totalBw + ' MHz DL (' + (pBw > 0 ? pBw + ' MHz PCC + ' : '') + sBw + ' MHz SCC)', COLOR_PURPLE));
     }
@@ -723,8 +826,18 @@ function ethSection(data, widgetId) {
         }, data.cdt.pairs.map(cdtPairBadge));
 
         var cdtNote = E('div', {
-            'style': 'font-size:0.72em;color:#64748b;line-height:1.4;margin-bottom:8px;'
-        }, 'ℹ️ Realtek PHY Time-Domain Reflectometry (TDR) estimation' + (avgLen ? ' (~' + avgLen + ' m electrical loop)' : '') + '. Verifies continuity across all 4 gigabit & PoE pairs.');
+            'style': 'font-size:0.78em;color:#cbd5e1;line-height:1.45;margin-bottom:8px;background:rgba(59,130,246,0.06);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:9px 12px;'
+        }, [
+            E('div', { 'style': 'display:flex;align-items:flex-start;gap:8px;' }, [
+                E('span', { 'style': 'font-size:1.1em;line-height:1;' }, 'ℹ️'),
+                E('div', {}, [
+                    E('strong', { 'style': 'color:#38bdf8;' }, 'Cable Diagnostics Disclaimer: '),
+                    'Estimated cable length is an electrical measurement (TDR) and may report longer than actual due to passive PoE injector circuitry and transformer signal latency. ',
+                    E('strong', { 'style': 'color:#34d399;' }, 'Wire pair health status (Normal vs Fault) is 100% true and hardware-verified'),
+                    ' by the PHY, guaranteeing pin continuity for Gigabit data and PoE power.'
+                ])
+            ])
+        ]);
 
         children.push(cdtHeader, cdtGrid, cdtNote);
     }
@@ -1242,6 +1355,8 @@ function renderDashboard(data) {
         mainChildren.push(emptyDashboardPlaceholder());
     } else {
         if (sumRow) mainChildren.push(sumRow);
+        var discoverBanner = buildDiscoverBanner();
+        if (discoverBanner) mainChildren.push(discoverBanner);
         if (cellPanels) mainChildren.push(cellPanels);
         if (managementColumn) mainChildren.push(managementColumn);
         if (gaugePanels) mainChildren.push(gaugePanels);
@@ -1312,12 +1427,11 @@ return view.extend({
             return E('div', { 'class': 'jodu-modal-field' }, children);
         }
 
-        function openCustomizeModal() {
-            var vis = getWidgetVisibility();
+        function showCustomizeModal() {
             var checkboxMap = {};
 
             var items = WIDGET_CATALOG.map(function (w) {
-                var isChecked = vis[w.id] !== false;
+                var isChecked = isWidgetVisible(w.id);
                 var cb = E('input', { 'type': 'checkbox', 'checked': isChecked || null });
                 checkboxMap[w.id] = cb;
 
@@ -1397,6 +1511,7 @@ return view.extend({
                 footer
             ]);
         }
+        openCustomizeModal = showCustomizeModal;
 
         function openSettingsModal() {
             uci.unload('jodu5164x');
@@ -1929,7 +2044,7 @@ return view.extend({
         var customizeBtn = E('button', {
             'class': 'btn jodu-top-btn',
             'style': 'background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.35);color:#c084fc;',
-            'click': ui.createHandlerFn(this, openCustomizeModal)
+            'click': ui.createHandlerFn(this, showCustomizeModal)
         }, '🎨 Customize');
 
         var refreshBtn = E('button', {
@@ -1958,6 +2073,8 @@ return view.extend({
             '.jodu-top-btn:hover { background:rgba(255,255,255,0.12);transform:translateY(-1px); }',
             '.jodu-pulse-dot { display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 rgba(16,185,129,0.6);animation:jodu-pulse 2s infinite;margin-right:6px;vertical-align:middle; }',
             '@keyframes jodu-pulse { 0% { box-shadow:0 0 0 0 rgba(16,185,129,0.7); } 70% { box-shadow:0 0 0 8px rgba(16,185,129,0); } 100% { box-shadow:0 0 0 0 rgba(16,185,129,0); } }',
+            '.jodu-discover-banner { animation:jodu-discover-glow 3.5s infinite ease-in-out; }',
+            '@keyframes jodu-discover-glow { 0%, 100% { box-shadow:0 0 14px rgba(139,92,246,0.22); border-color:rgba(139,92,246,0.45); } 50% { box-shadow:0 0 26px rgba(56,189,248,0.38); border-color:rgba(56,189,248,0.7); } }',
             '.jodu-sum-row { display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px; }',
             '.jodu-sum-card { flex:1;min-width:160px;padding:18px 16px;text-align:center;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.12);transition:transform 0.25s ease, border-color 0.25s ease; }',
             '.jodu-sum-card:hover { transform:translateY(-2px);border-color:rgba(255,255,255,0.16); }',
