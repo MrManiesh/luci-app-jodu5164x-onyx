@@ -387,6 +387,31 @@ extract_block_lines() {
     '
 }
 
+# Parses Realtek PHY Cable Diagnostic Test (CDT) block into structured JSON:
+# { "speed":"1000", "pairs":[{"pair":"1-2","length":"21","status":"normal","fault":"none"}, ...] }
+build_cdt_json() {
+    raw="$1"
+    printf '%s\n' "$raw" | awk '
+        BEGIN { speed=""; first=1; pairs="" }
+        /link speed:[0-9]+/ {
+            sub(/^.*link speed:/, "")
+            sub(/\r$/, "")
+            speed=$1
+        }
+        $1 ~ /^[0-9]-[0-9]$/ {
+            p=$1; len=$2; st=$3; pp=$4
+            sub(/\r$/, "", pp)
+            entry = sprintf("{\"pair\":\"%s\",\"length\":\"%s\",\"status\":\"%s\",\"fault\":\"%s\"}", p, len, st, pp)
+            if (!first) pairs = pairs "," entry
+            else { pairs = entry; first=0 }
+        }
+        END {
+            if (pairs == "") printf "null"
+            else printf "{\"speed\":\"%s\",\"pairs\":[%s]}", speed, pairs
+        }
+    '
+}
+
 # Parses 5G NR Cell History lines ("<idx> <ARFCN> <PCI> <RSRP> <RSRQ>" or "+BNRCELLH: ...")
 # into a structured JSON array, discarding empty/unused slots (ARFCN=0, PCI=0).
 build_nearby_cells_json() {
@@ -575,6 +600,15 @@ fi
 TAC_ESC=$(json_escape "$TAC")
 GLOBAL_CELL_ID_ESC=$(json_escape "$GLOBAL_CELL_ID")
 
+# Cable Diagnostic Test (CDT) / Physical Wire Pair Health
+if [ "$WANT_LAN" = "1" ] || [ "$WANT_SYS" = "1" ]; then
+    CDT_RAW=$(extract_block_lines "$SYS_RAW" "CDT")
+    CDT_JSON=$(build_cdt_json "$CDT_RAW")
+else
+    CDT_JSON="null"
+fi
+[ -z "$CDT_JSON" ] && CDT_JSON="null"
+
 # CPU State Delta Breakdown
 if [ "$WANT_CPU" = "1" ]; then
     S1=$(extract_stat_block "$SYS_RAW" "STAT1")
@@ -758,5 +792,5 @@ TELNET_MSG=$(get_telnet_message)
 TELNET_MSG_ESC=$(json_escape "$TELNET_MSG")
 
 cat <<EOF
-{"server_link":"ONLINE","sim_status":"${SIM_STATUS}","signal_strength":"${SIGNAL_STRENGTH}","operating_mode":"${OPERATING_MODE}","band":"${BAND}","bandwidth":"${BANDWIDTH}","arfcn":"${ARFCN}","pci":"${PCI}","plmn":"${PLMN}","rrc_state":"${RRC_STATE}","rsrp":"${RSRP}","rsrq":"${RSRQ}","sinr":"${SINR}","bler":"${BLER}","mimo":"${MIMO}","modulation":"${MODULATION}","cqi":"${CQI}","SCC_BAND":"${SCC_BAND}","SCC_BW":"${SCC_BW}","SCC_ARFCN":"${SCC_ARFCN}","SCC_PCI":"${SCC_PCI}","SCC_BLER":"${SCC_BLER}","SCC_MIMO":"${SCC_MIMO}","SCC_MODULATION":"${SCC_MODULATION}","SCC_CQI":"${SCC_CQI}","SCC_RSRP":"${SCC_RSRP}","SCC_RSRQ":"${SCC_RSRQ}","SCC_SINR":"${SCC_SINR}","eth_link_status":"${ETH_LINK_STATUS}","eth_speed":"${ETH_SPEED}","eth_duplex":"${ETH_DUPLEX}","eth_uptime":"${ETH_UPTIME}","data_sent":"${DATA_SENT}","data_received":"${DATA_RECEIVED}","packet_loss":"${PACKET_LOSS}","thermal_zones":${THERMAL_JSON},"odu_cpu_pct":"${CPU_PCT}","odu_cpu_user":"${PCT_USER}","odu_cpu_nice":"${PCT_NICE}","odu_cpu_system":"${PCT_SYSTEM}","odu_cpu_idle":"${PCT_IDLE}","odu_cpu_iowait":"${PCT_IOWAIT}","odu_cpu_irq":"${PCT_IRQ}","odu_cpu_softirq":"${PCT_SOFTIRQ}","odu_cpu_steal":"${PCT_STEAL}","odu_cpu_cores":"${CORES}","odu_cpu_model":"${CPU_MODEL_ESC}","odu_load1":"${LOAD1}","odu_load5":"${LOAD5}","odu_load15":"${LOAD15}","odu_tasks_running":"${TASKS_RUNNING}","odu_tasks_total":"${TASKS_TOTAL}","odu_uptime_sec":"${UPTIME_SEC}","odu_ctxt_rate":"${CTXT_RATE}","odu_intr_rate":"${INTR_RATE}","odu_conntrack_count":"${CONNTRACK_COUNT}","odu_conntrack_max":"${CONNTRACK_MAX}","odu_mem_total_kb":"${MEM_TOTAL_KB}","odu_mem_used_kb":"${MEM_USED_KB}","odu_mem_pct":"${MEM_PCT}","odu_mem_free_kb":"${MEM_FREE_KB}","odu_mem_cached_kb":"${MEM_CACHED_KB}","odu_mem_buffers_kb":"${MEM_BUFFERS_KB}","odu_mem_swap_total_kb":"${MEM_SWAP_TOTAL_KB}","odu_mem_swap_used_kb":"${MEM_SWAP_USED_KB}","nearby_cells":${NEARBY_CELLS_JSON},"cell_lock_status":"${CELL_LOCK_STATUS_ESC}","tac":"${TAC_ESC}","global_cell_id":"${GLOBAL_CELL_ID_ESC}","timing_advance":"${TIMING_ADVANCE}","webui_status":"${WEBUI_STATUS}","telnet_status":"${TELNET_STATUS}","telnet_message":"${TELNET_MSG_ESC}"}
+{"server_link":"ONLINE","sim_status":"${SIM_STATUS}","signal_strength":"${SIGNAL_STRENGTH}","operating_mode":"${OPERATING_MODE}","band":"${BAND}","bandwidth":"${BANDWIDTH}","arfcn":"${ARFCN}","pci":"${PCI}","plmn":"${PLMN}","rrc_state":"${RRC_STATE}","rsrp":"${RSRP}","rsrq":"${RSRQ}","sinr":"${SINR}","bler":"${BLER}","mimo":"${MIMO}","modulation":"${MODULATION}","cqi":"${CQI}","SCC_BAND":"${SCC_BAND}","SCC_BW":"${SCC_BW}","SCC_ARFCN":"${SCC_ARFCN}","SCC_PCI":"${SCC_PCI}","SCC_BLER":"${SCC_BLER}","SCC_MIMO":"${SCC_MIMO}","SCC_MODULATION":"${SCC_MODULATION}","SCC_CQI":"${SCC_CQI}","SCC_RSRP":"${SCC_RSRP}","SCC_RSRQ":"${SCC_RSRQ}","SCC_SINR":"${SCC_SINR}","eth_link_status":"${ETH_LINK_STATUS}","eth_speed":"${ETH_SPEED}","eth_duplex":"${ETH_DUPLEX}","eth_uptime":"${ETH_UPTIME}","cdt":${CDT_JSON},"data_sent":"${DATA_SENT}","data_received":"${DATA_RECEIVED}","packet_loss":"${PACKET_LOSS}","thermal_zones":${THERMAL_JSON},"odu_cpu_pct":"${CPU_PCT}","odu_cpu_user":"${PCT_USER}","odu_cpu_nice":"${PCT_NICE}","odu_cpu_system":"${PCT_SYSTEM}","odu_cpu_idle":"${PCT_IDLE}","odu_cpu_iowait":"${PCT_IOWAIT}","odu_cpu_irq":"${PCT_IRQ}","odu_cpu_softirq":"${PCT_SOFTIRQ}","odu_cpu_steal":"${PCT_STEAL}","odu_cpu_cores":"${CORES}","odu_cpu_model":"${CPU_MODEL_ESC}","odu_load1":"${LOAD1}","odu_load5":"${LOAD5}","odu_load15":"${LOAD15}","odu_tasks_running":"${TASKS_RUNNING}","odu_tasks_total":"${TASKS_TOTAL}","odu_uptime_sec":"${UPTIME_SEC}","odu_ctxt_rate":"${CTXT_RATE}","odu_intr_rate":"${INTR_RATE}","odu_conntrack_count":"${CONNTRACK_COUNT}","odu_conntrack_max":"${CONNTRACK_MAX}","odu_mem_total_kb":"${MEM_TOTAL_KB}","odu_mem_used_kb":"${MEM_USED_KB}","odu_mem_pct":"${MEM_PCT}","odu_mem_free_kb":"${MEM_FREE_KB}","odu_mem_cached_kb":"${MEM_CACHED_KB}","odu_mem_buffers_kb":"${MEM_BUFFERS_KB}","odu_mem_swap_total_kb":"${MEM_SWAP_TOTAL_KB}","odu_mem_swap_used_kb":"${MEM_SWAP_USED_KB}","nearby_cells":${NEARBY_CELLS_JSON},"cell_lock_status":"${CELL_LOCK_STATUS_ESC}","tac":"${TAC_ESC}","global_cell_id":"${GLOBAL_CELL_ID_ESC}","timing_advance":"${TIMING_ADVANCE}","webui_status":"${WEBUI_STATUS}","telnet_status":"${TELNET_STATUS}","telnet_message":"${TELNET_MSG_ESC}"}
 EOF

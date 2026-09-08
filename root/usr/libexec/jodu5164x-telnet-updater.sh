@@ -156,6 +156,9 @@ fetch_once() {
                 printf 'echo CORES:$(grep -c ^processor /proc/cpuinfo)\r\n'
                 printf "MODEL_VAL=\$(cat /proc/device-tree/model 2>/dev/null | tr -d '\\\\0'); [ -z \"\$MODEL_VAL\" ] && MODEL_VAL=\$(grep -m1 Hardware /proc/cpuinfo | cut -d: -f2); [ -z \"\$MODEL_VAL\" ] && MODEL_VAL=\$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2); echo MODEL:\$MODEL_VAL\r\n"
                 printf 'echo CONNTRACK:$(cat /proc/sys/net/netfilter/nf_conntrack_count 2>/dev/null):$(cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null)\r\n'
+
+                # 7. Ethernet Cable Diagnostics (Realtek PHY CDT)
+                printf 'echo CDT_BEGIN; cat /proc/net/r81*/eth0/test/cdt_poe 2>/dev/null || cat /proc/net/r81*/eth0/test/cdt 2>/dev/null; echo CDT_END\r\n'
             fi
 
             # Dynamic wait time: AT+BNRCELLH=? requires ~8s for modem channel scan;

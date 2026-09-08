@@ -666,6 +666,33 @@ function ethSpeedSuggestion(mbps) {
     return '⚠️ Link negotiated at ' + v + ' Mbps. Use a Cat6+ Ethernet cable or Gigabit port to achieve 1 Gbps+ speeds.';
 }
 
+function cdtPairBadge(p) {
+    var isOk = (String(p.status).toLowerCase() === 'normal');
+    var color = isOk ? COLOR_GOOD : COLOR_POOR;
+    var bg = isOk ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.12)';
+    var border = isOk ? 'rgba(16,185,129,0.22)' : 'rgba(239,68,68,0.32)';
+    var pairName = (p.pair === '1-2' ? 'Pair 1-2 (Data)' : (p.pair === '3-6' ? 'Pair 3-6 (Data)' : (p.pair === '4-5' ? 'Pair 4-5 (PoE)' : 'Pair 7-8 (PoE)')));
+    var faultInfo = (p.fault && p.fault !== 'none') ? ' @ ' + p.fault + 'm' : '';
+    var statusText = isOk ? 'Normal' : (String(p.status).toUpperCase() + faultInfo);
+
+    return E('div', {
+        'class': 'jodu-cdt-pair-card',
+        'style': 'background:' + bg + ';border:1px solid ' + border + ';border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;'
+    }, [
+        E('div', {}, [
+            E('div', { 'style': 'font-size:0.75em;color:#94a3b8;font-weight:600;' }, pairName),
+            E('div', { 'style': 'font-size:0.88em;color:' + color + ';font-weight:700;display:flex;align-items:center;gap:5px;margin-top:2px;' }, [
+                colorDot(color),
+                statusText
+            ])
+        ]),
+        E('div', { 'style': 'text-align:right;' }, [
+            E('div', { 'style': 'font-size:0.70em;color:#64748b;' }, 'Est. Run'),
+            E('div', { 'style': 'font-size:0.90em;color:#e2e8f0;font-weight:700;' }, p.length ? (p.length + ' m') : '--')
+        ])
+    ]);
+}
+
 function ethSection(data, widgetId) {
     var speedColor = ethSpeedColor(data.eth_speed);
     var rows = [
@@ -675,6 +702,33 @@ function ethSection(data, widgetId) {
     ];
     var table = E('table', { 'class': 'jodu-table' }, rows);
     var children = [table];
+
+    if (data.cdt && data.cdt.pairs && data.cdt.pairs.length) {
+        var allOk = data.cdt.pairs.every(function (p) { return String(p.status).toLowerCase() === 'normal'; });
+        var avgLen = data.cdt.pairs[0] ? data.cdt.pairs[0].length : null;
+        var cdtBadge = E('span', {
+            'class': 'jodu-badge',
+            'style': allOk ? 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);font-size:0.72em;' : 'background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);font-size:0.72em;'
+        }, allOk ? '🟢 All 4 Pairs Normal' : '⚠️ Cable Fault Detected');
+
+        var cdtHeader = E('div', {
+            'style': 'margin:14px 0 8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;'
+        }, [
+            E('span', { 'style': 'font-size:0.82em;font-weight:700;letter-spacing:0.04em;color:#cbd5e1;' }, 'CABLE HEALTH & DIAGNOSTICS (CDT)'),
+            cdtBadge
+        ]);
+
+        var cdtGrid = E('div', {
+            'style': 'display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;margin-bottom:6px;'
+        }, data.cdt.pairs.map(cdtPairBadge));
+
+        var cdtNote = E('div', {
+            'style': 'font-size:0.72em;color:#64748b;line-height:1.4;margin-bottom:8px;'
+        }, 'ℹ️ Realtek PHY Time-Domain Reflectometry (TDR) estimation' + (avgLen ? ' (~' + avgLen + ' m electrical loop)' : '') + '. Verifies continuity across all 4 gigabit & PoE pairs.');
+
+        children.push(cdtHeader, cdtGrid, cdtNote);
+    }
+
     var speedSuggestion = ethSpeedSuggestion(data.eth_speed);
     if (speedSuggestion) {
         children.push(E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(239,68,68,0.12);color:#f87171;' }, speedSuggestion));
