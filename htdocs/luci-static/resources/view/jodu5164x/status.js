@@ -268,22 +268,22 @@ function signalQualityPercent(rsrp) {
 function renderSignalBars(barsCount, color) {
     var count = parseInt(barsCount, 10);
     if (isNaN(count) || count < 0) count = 0;
-    if (count > 5) count = 5;
+    if (count > 4) count = 4;
 
-    var col = color || (count >= 4 ? COLOR_GOOD : (count >= 2 ? COLOR_OK : (count === 0 ? COLOR_NEUTRAL : COLOR_POOR)));
-    var heights = [6, 10, 14, 18, 22];
+    var col = color || (count >= 3 ? COLOR_GOOD : (count === 2 ? COLOR_OK : (count === 0 ? COLOR_NEUTRAL : COLOR_POOR)));
+    var heights = [7, 12, 17, 22];
     var bars = [];
 
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 4; i++) {
         var active = (i < count);
         bars.push(E('span', {
-            'style': 'display:inline-block;width:5px;height:' + heights[i] + 'px;border-radius:1.5px;background:' +
+            'style': 'display:inline-block;width:6px;height:' + heights[i] + 'px;border-radius:2px;background:' +
                 (active ? col : 'rgba(255,255,255,0.18)') + ';' +
                 (active ? 'box-shadow:0 0 6px ' + col + '60;' : '')
         }));
     }
 
-    return E('div', { 'style': 'display:inline-flex;align-items:flex-end;gap:3px;height:22px;margin-right:6px;' }, bars);
+    return E('div', { 'style': 'display:inline-flex;align-items:flex-end;gap:3.5px;height:22px;margin-right:6px;' }, bars);
 }
 
 function summaryCard(label, value, color, sublabel, icon, visualElem) {
@@ -340,17 +340,17 @@ function summaryRow(data, online) {
 
         var rawBars = parseInt(data.signal_strength, 10);
         var hasBars = !isNaN(rawBars) && rawBars >= 0 && data.signal_strength !== '--';
-        var barsVal = hasBars ? rawBars : 0;
-        var barsColor = hasBars ? (barsVal >= 4 ? COLOR_GOOD : (barsVal >= 2 ? COLOR_OK : (barsVal === 0 ? COLOR_NEUTRAL : COLOR_POOR))) : COLOR_NEUTRAL;
-        var barsQuality = hasBars ? (barsVal >= 4 ? 'Strong Signal' : (barsVal >= 2 ? 'Moderate Signal' : 'Low Coverage')) : 'Sampling...';
-        var barsSub = hasBars ? (barsVal + '/5 Bars · ' + barsQuality) : 'Cellular Level';
+        var barsVal = hasBars ? (rawBars > 4 ? 4 : rawBars) : 0;
+        var barsColor = hasBars ? (barsVal >= 3 ? COLOR_GOOD : (barsVal === 2 ? COLOR_OK : (barsVal === 0 ? COLOR_NEUTRAL : COLOR_POOR))) : COLOR_NEUTRAL;
+        var barsQuality = hasBars ? (barsVal === 4 ? 'Excellent' : (barsVal === 3 ? 'Very Good' : (barsVal === 2 ? 'Good' : (barsVal === 1 ? 'Poor' : 'No Signal')))) : 'Sampling...';
+        var barsSub = hasBars ? (barsVal + '/4 Bars · ' + barsQuality) : 'Cellular Level';
 
         cards = [
             noSim ? summaryCard('NETWORK', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM', '📱') :
                 summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, '📡'),
             summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', qualityColor('rsrp', data.rsrp), sigSub, '📡'),
             summaryCard('RADIO PURITY', sinrVal, qualityColor('sinr', data.sinr), puritySub, '⚡'),
-            summaryCard('SIGNAL LEVEL', hasBars ? (barsVal + ' / 5') : 'NA', barsColor, barsSub, '📶', renderSignalBars(barsVal, barsColor))
+            summaryCard('SIGNAL LEVEL', hasBars ? (barsVal + ' / 4') : 'NA', barsColor, barsSub, '📶', renderSignalBars(barsVal, barsColor))
         ];
     }
 

@@ -78,7 +78,7 @@ Originally created and conceptualized by **[Anish (@anishthevictorious)](https:/
 - **Hardware Control**: 1-Click remote reboot of the 5G ODU with automatic reconnection monitoring.
 - **Ethernet Diagnostics & Link Health**: Real-time link status, duplex, negotiated speed, and Cat6/Gigabit cable recommendations for sub-gigabit links.
 - **Ethernet Cable Health & Diagnostics (CDT)**: Realtek PHY cable diagnostics (`diag phy cable get`) testing all 4 twisted pairs (Pairs A, B, C, D) for Normal, Open, Short, or Mismatch status with per-pair physical length estimation in meters.
-- **Dynamic 5G Signal Level Bars**: Visual 4/5-bar cellular signal strength meter replacing the static link block at the top of the dashboard and in the Primary Cell table.
+- **Dynamic 5G Signal Level Bars**: Visual 4-bar cellular signal strength meter replacing the static link block at the top of the dashboard.
 - **Modular Dashboard & Clean Fresh Install Defaults**: 5 clean widgets active on fresh install (`quick_metrics`, `primary_cell`, `secondary_cells`, `nearby_cells`, `hardware_control`) with optional widgets toggled via the "Customize Dashboard" modal, and a prominent discovery reminder.
 - **CPU & RAM Gauges**: Circular percentage gauges with 5-minute historical sparklines.
 - **Detailed CPU Breakdown**: User space, System kernel, Idle, I/O wait, Hardware IRQ, Software IRQ, context switches/s, interrupt rate/s, and active connection tracking (`nf_conntrack`).
