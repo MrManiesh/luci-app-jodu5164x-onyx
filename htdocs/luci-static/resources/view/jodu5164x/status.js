@@ -21,6 +21,44 @@ var COLOR_BLUE = '#3b82f6';     // Blue 500
 var COLOR_PURPLE = '#8b5cf6';   // Purple 500
 var COLOR_CYAN = '#06b6d4';     // Cyan 500
 
+function svgIcon(name, size, color) {
+    var s = size || 16;
+    var c = color || 'currentColor';
+    var paths = {
+        signal: '<path d="M2 18h3v-4H2v4zm5 0h3v-8H7v8zm5 0h3V6h-3v12zm5 0h3V2h-3v16z"/>',
+        speed: '<path d="M13 2.5L4 13.5h6l-1 8 9-11h-6l1-8z"/>',
+        sinr: '<path d="M12 3a9 9 0 00-9 9c0 2.4.9 4.6 2.4 6.2l1.4-1.4A7 7 0 1119 12h2a9 9 0 00-9-9zm-4 9a4 4 0 118 0 4 4 0 01-8 0z"/>',
+        ca: '<path d="M4 6h16v2H4V6zm2 5h12v2H6v-2zm3 5h6v2H9v-2z"/>',
+        cell: '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/>',
+        cable: '<path d="M18 6h-2V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2H6a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2zm-8-2h4v2h-4V4zm8 14H6V8h12v10zm-7-7h2v5h-2v-5zm4 0h2v5h-2v-5zm-8 0h2v5H7v-5z"/>',
+        radar: '<path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm1 17.93V13h4.93a8 8 0 01-4.93 6.93zM13 11V4.07A8 8 0 0117.93 11zm-2-6.93V11H4.07A8 8 0 0111 4.07zM4.07 13H11v6.93A8 8 0 014.07 13z"/>',
+        temp: '<path d="M15 13V5a3 3 0 00-6 0v8a5 5 0 106 0zm-3 8a3 3 0 01-1.5-.42V5a1.5 1.5 0 013 0v15.58A3 3 0 0112 21z"/>',
+        cpu: '<path d="M9 3v2h6V3h2v2h2a2 2 0 012 2v2h2v2h-2v6h2v2h-2v2a2 2 0 01-2 2h-2v2h-2v-2H9v2H7v-2H5a2 2 0 01-2-2v-2H1v-2h2v-6H1V9h2V7a2 2 0 012-2h2V3h2zm8 4H7v10h10V7zm-2 2v6H9V9h6z"/>',
+        ram: '<path d="M4 5h16v14H4V5zm2 2v10h12V7H6zm2 2h2v3H8V9zm4 0h2v3h-2V9zm4 0h2v3h-2V9z"/>',
+        chip: '<path d="M6 4a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H6zm0 2h12v12H6V6zm2 2v8h8V8H8zm2 2h4v4h-4v-4z"/>',
+        settings: '<path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54A.48.48 0 0014 2h-4c-.25 0-.46.18-.49.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.63 8.87a.49.49 0 00.12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>',
+        refresh: '<path d="M17.65 6.35A7.96 7.96 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>',
+        pause: '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>',
+        play: '<path d="M8 5v14l11-7z"/>',
+        customize: '<path d="M3 5h8v2H3V5zm0 6h14v2H3v-2zm0 6h10v2H3v-2zm16-4v-2h-2V7h-2v4h-2v2h2v4h2v-4h2z"/>',
+        lock: '<path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>',
+        unlock: '<path d="M12 13c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6-5h-1V6c0-2.76-2.24-5-5-5-2.28 0-4.27 1.54-4.84 3.75l1.94.5c.34-1.32 1.53-2.25 2.9-2.25 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z"/>',
+        sound: '<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>',
+        soundOff: '<path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27l4.73 4.73H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>',
+        globe: '<path d="M12 2a10 10 0 100 20 10 10 0 000-20zm7.93 9h-3.95a15.65 15.65 0 00-1.37-5.06A8.04 8.04 0 0119.93 11zM12 4.07c1.07 1.96 1.87 4.31 2.06 6.93H9.94c.19-2.62.99-4.97 2.06-6.93zM4.07 13h3.95c.19 2.62.99 4.97 2.06 6.93A8.04 8.04 0 014.07 13zm3.95-2H4.07a8.04 8.04 0 015.32-4.94A15.65 15.65 0 008.02 11zm3.92 6.93c-1.07-1.96-1.87-4.31-2.06-6.93h4.12c-.19 2.62-.99 4.97-2.06 6.93zm4.67-1.87A15.65 15.65 0 0015.98 11h3.95a8.04 8.04 0 01-5.32 4.94z"/>',
+        close: '<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>'
+    };
+    var p = paths[name] || paths.signal;
+    var el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    el.setAttribute('viewBox', '0 0 24 24');
+    el.setAttribute('width', String(s));
+    el.setAttribute('height', String(s));
+    el.setAttribute('fill', c);
+    el.setAttribute('style', 'display:inline-block;vertical-align:middle;flex-shrink:0;');
+    el.innerHTML = p;
+    return el;
+}
+
 var cdtExpanded = false;
 var rebootState = { inProgress: false, sawOffline: false };
 var aimingSession = {
@@ -37,16 +75,16 @@ var openCustomizeModal = null;
 var currentPollInterval = 3;
 
 var WIDGET_CATALOG = [
-    { id: 'summary', name: 'Quick Metrics Summary', desc: 'Top summary cards (Network, Signal Power, Radio Purity, Signal Level)', icon: '📶' },
-    { id: 'primary_cell', name: 'Primary Cell Parameters', desc: 'Primary serving cell radio parameters, TAC, Cell ID, Tower Distance', icon: '📡' },
-    { id: 'secondary_cell', name: 'Secondary Cell (Carrier Aggregation)', desc: 'Secondary carrier metrics and aggregate bandwidth clarification', icon: '⚡' },
-    { id: 'nearby_cells', name: 'Nearby Cells & Sector Scan', desc: 'Neighbouring sector towers with 1-click lock and unlock buttons', icon: '🛰️' },
-    { id: 'eth_mgmt', name: 'ODU Management & Hardware Control', desc: 'Ethernet link details, cable tips, and remote ODU reboot', icon: '🔌' },
-    { id: 'cpu_gauge', name: 'CPU Usage Gauge', desc: 'Circular CPU percentage gauge and 5-minute history sparkline', icon: '📊' },
-    { id: 'memory', name: 'Memory (RAM) Telemetry', desc: 'RAM usage gauge, total/used/free/cached/buffers, and sparkline', icon: '🧠' },
-    { id: 'cpu_detail', name: 'CPU Detailed Breakdown', desc: 'User, System, Idle, I/O wait, IRQ, context switches, active connections', icon: '📋' },
-    { id: 'data_usage', name: 'Data Usage & Bandwidth Tracker', desc: 'Session data upload/download volume and rolling history windows', icon: '📈' },
-    { id: 'thermal', name: 'Internal Thermal Sensors', desc: 'Multi-zone temperature grid and hottest sensor alert', icon: '🌡️' }
+    { id: 'summary', name: 'Quick Metrics Summary', desc: 'Top telemetry cards (Network, Signal Power, Radio Purity, Signal Level)', icon: 'signal' },
+    { id: 'primary_cell', name: 'Primary Cell Parameters', desc: 'Primary serving cell radio parameters, TAC, Cell ID, Tower Distance', icon: 'cell' },
+    { id: 'secondary_cell', name: 'Secondary Cell (Carrier Aggregation)', desc: 'Secondary carrier metrics and aggregate bandwidth breakdown', icon: 'ca' },
+    { id: 'nearby_cells', name: 'Nearby Cells & Sector Scan', desc: 'Neighbouring sector towers with 1-click lock and unlock buttons', icon: 'radar' },
+    { id: 'eth_mgmt', name: 'ODU Management & Hardware Control', desc: 'Ethernet link details, cable diagnostics, and remote ODU reboot', icon: 'cable' },
+    { id: 'cpu_gauge', name: 'CPU Usage Gauge', desc: 'Circular CPU percentage gauge and 5-minute history telemetry', icon: 'cpu' },
+    { id: 'memory', name: 'Memory (RAM) Telemetry', desc: 'RAM usage gauge, total/used/free/cached/buffers, and sparkline', icon: 'ram' },
+    { id: 'cpu_detail', name: 'CPU Detailed Breakdown', desc: 'User, System, Idle, I/O wait, IRQ, context switches, active connections', icon: 'chip' },
+    { id: 'data_usage', name: 'Data Usage & Bandwidth Tracker', desc: 'Session data upload/download volume and rolling history windows', icon: 'speed' },
+    { id: 'thermal', name: 'Internal Thermal Sensors', desc: 'Multi-zone temperature grid and hottest sensor alert', icon: 'temp' }
 ];
 
 var DEFAULT_WIDGET_VISIBILITY = {
@@ -115,35 +153,35 @@ function buildDiscoverBanner() {
 
     return E('div', {
         'class': 'jodu-discover-banner',
-        'style': 'margin-bottom:16px;padding:12px 16px;background:linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(139,92,246,0.16) 50%, rgba(6,182,212,0.12) 100%);border:1px solid rgba(139,92,246,0.45);border-radius:12px;box-shadow:0 0 16px rgba(139,92,246,0.15);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;'
+        'style': 'margin-bottom:14px;padding:10px 14px;background:#0d1522;border:1px solid #1e293b;border-left:3px solid #38bdf8;border-radius:4px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;'
     }, [
-        E('div', { 'style': 'display:flex;align-items:center;gap:12px;flex:1;min-width:280px;' }, [
-            E('div', { 'style': 'font-size:1.8em;line-height:1;filter:drop-shadow(0 0 6px rgba(250,204,21,0.6));' }, '✨'),
+        E('div', { 'style': 'display:flex;align-items:center;gap:10px;flex:1;min-width:260px;' }, [
+            svgIcon('customize', 18, '#38bdf8'),
             E('div', {}, [
-                E('div', { 'style': 'font-weight:700;color:#f8fafc;font-size:0.96em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;' }, [
-                    'Discover More Telemetry Widgets',
-                    E('span', { 'class': 'jodu-badge', 'style': 'background:rgba(139,92,246,0.25);color:#c084fc;border:1px solid rgba(139,92,246,0.4);font-size:0.7em;' }, disabledCount + ' Extra Features Paused')
+                E('div', { 'style': 'font-weight:700;color:#f8fafc;font-size:0.85em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;letter-spacing:0.02em;' }, [
+                    'OPTIONAL TELEMETRY MODULES AVAILABLE',
+                    E('span', { 'class': 'jodu-badge', 'style': 'background:#1e293b;color:#94a3b8;border:1px solid #334155;font-size:0.7em;' }, disabledCount + ' Disabled')
                 ]),
-                E('div', { 'style': 'color:#cbd5e1;font-size:0.83em;margin-top:3px;line-height:1.4;' },
-                    'CPU Gauge, RAM Telemetry, CPU Detailed Breakdown, Bandwidth Tracker, and Thermal Sensors are paused by default for ultra-lightweight performance.'
+                E('div', { 'style': 'color:#94a3b8;font-size:0.78em;margin-top:2px;line-height:1.3;' },
+                    'CPU Gauge, RAM Telemetry, Detailed Diagnostics, Bandwidth Tracker, and Thermal Grid are paused for minimal CPU overhead.'
                 )
             ])
         ]),
         E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
             E('button', {
-                'class': 'btn cbi-button-action',
-                'style': 'background:linear-gradient(135deg, #3b82f6, #8b5cf6);color:#fff;font-weight:700;font-size:0.85em;padding:7px 14px;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 10px rgba(139,92,246,0.3);display:inline-flex;align-items:center;gap:6px;',
+                'class': 'btn jodu-btn-sm',
+                'style': 'background:#0369a1;border-color:#0284c7;color:#fff;',
                 'click': function () {
                     if (openCustomizeModal) openCustomizeModal();
                 }
             }, [
-                E('span', {}, '🎨'),
-                'Explore & Enable Widgets'
+                svgIcon('customize', 13, '#fff'),
+                E('span', { 'style': 'margin-left:4px;' }, 'Manage Widgets')
             ]),
             E('button', {
-                'class': 'btn',
-                'title': 'Dismiss this reminder',
-                'style': 'background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:6px 10px;font-size:0.9em;cursor:pointer;',
+                'class': 'btn jodu-btn-sm',
+                'title': 'Dismiss this notice',
+                'style': 'background:#0f172a;color:#64748b;border-color:#1e293b;padding:4px 8px;',
                 'click': function (ev) {
                     ev.stopPropagation();
                     try {
@@ -153,7 +191,7 @@ function buildDiscoverBanner() {
                     } catch (e) { }
                     if (triggerRefresh) triggerRefresh();
                 }
-            }, '✕')
+            }, [svgIcon('close', 12, '#64748b')])
         ])
     ]);
 }
@@ -272,22 +310,21 @@ function renderSignalBars(barsCount, color) {
     if (count > 4) count = 4;
 
     var col = color || (count >= 3 ? COLOR_GOOD : (count === 2 ? COLOR_OK : (count === 0 ? COLOR_NEUTRAL : COLOR_POOR)));
-    var heights = [7, 12, 17, 22];
+    var heights = [6, 10, 14, 18];
     var bars = [];
 
     for (var i = 0; i < 4; i++) {
         var active = (i < count);
         bars.push(E('span', {
             'class': 'jodu-sig-bar' + (active ? ' jodu-sig-bar-active' : ''),
-            'style': 'display:inline-block;width:6px;height:' + heights[i] + 'px;border-radius:2px;background:' +
-                (active ? col : 'rgba(255,255,255,0.18)') + ';' +
-                (active ? 'box-shadow:0 0 6px ' + col + '60;' : '')
+            'style': 'display:inline-block;width:5px;height:' + heights[i] + 'px;border-radius:1px;background:' +
+                (active ? col : '#1e293b') + ';'
         }));
     }
 
     return E('div', {
         'class': 'jodu-signal-meter' + (count === 4 ? ' jodu-signal-meter-max' : ''),
-        'style': 'display:inline-flex;align-items:flex-end;gap:3.5px;height:22px;margin-right:6px;'
+        'style': 'display:inline-flex;align-items:flex-end;gap:3px;height:18px;margin-right:6px;'
     }, bars);
 }
 
@@ -308,7 +345,7 @@ function summaryCard(label, value, color, sublabel, icon, visualElem, accentColo
     }
     children.push(E('div', {
         'class': 'jodu-sum-val',
-        'style': 'color:' + (color || '#f8fafc') + ';text-shadow:0 0 16px ' + (color || '#f8fafc') + '33;'
+        'style': 'color:' + (color || '#f8fafc') + ';'
     }, valContent));
     if (sublabel) {
         children.push(E('div', { 'class': 'jodu-sum-sub' }, sublabel));
@@ -316,7 +353,7 @@ function summaryCard(label, value, color, sublabel, icon, visualElem, accentColo
     children.push(E('div', { 'class': 'jodu-sum-lbl' }, label));
     return E('div', {
         'class': 'jodu-sum-card',
-        'style': 'border-top:3px solid ' + acc + ';box-shadow:0 4px 20px rgba(0,0,0,0.18), 0 0 16px -4px ' + acc + '35;'
+        'style': 'border-top:2px solid ' + acc + ';'
     }, children);
 }
 
@@ -325,22 +362,22 @@ function summaryRow(data, online) {
 
     var hideBtn = E('button', {
         'class': 'jodu-summary-hide-btn',
-        'title': 'Hide Quick Metrics Summary (restore anytime from 🎨 Customize)',
+        'title': 'Hide Quick Metrics Summary (restore anytime from Widgets)',
         'click': function (ev) {
             ev.stopPropagation();
             setWidgetVisibility('summary', false);
-            notify('Hidden "Quick Metrics Summary". You can restore it anytime from "🎨 Customize".', 'info', 3500);
+            notify('Hidden "Quick Metrics Summary". You can restore it anytime from "Widgets".', 'info', 3500);
             if (triggerRefresh) triggerRefresh();
         }
-    }, '✕');
+    }, [svgIcon('close', 12, '#64748b')]);
 
     var cards;
     if (!online) {
         cards = [
-            summaryCard('NETWORK', 'OFFLINE', COLOR_POOR, 'ODU Unreachable', '📡', null, COLOR_POOR),
-            summaryCard('SIGNAL STRENGTH', '--', COLOR_NEUTRAL, 'No connection', '📡', null, COLOR_NEUTRAL),
-            summaryCard('RADIO PURITY', '--', COLOR_NEUTRAL, 'Telemetry paused', '⚡', null, COLOR_NEUTRAL),
-            summaryCard('SIGNAL LEVEL', '--', COLOR_NEUTRAL, 'No connection', '📶', renderSignalBars(0, COLOR_NEUTRAL), COLOR_NEUTRAL)
+            summaryCard('NETWORK', 'OFFLINE', COLOR_POOR, 'ODU Unreachable', svgIcon('cell', 16, COLOR_POOR), null, COLOR_POOR),
+            summaryCard('SIGNAL STRENGTH', '--', COLOR_NEUTRAL, 'No connection', svgIcon('signal', 16, COLOR_NEUTRAL), null, COLOR_NEUTRAL),
+            summaryCard('RADIO PURITY', '--', COLOR_NEUTRAL, 'Telemetry paused', svgIcon('sinr', 16, COLOR_NEUTRAL), null, COLOR_NEUTRAL),
+            summaryCard('SIGNAL LEVEL', '--', COLOR_NEUTRAL, 'No connection', svgIcon('signal', 16, COLOR_NEUTRAL), renderSignalBars(0, COLOR_NEUTRAL), COLOR_NEUTRAL)
         ];
     } else {
         var qualityPct = signalQualityPercent(data.rsrp);
@@ -361,11 +398,11 @@ function summaryRow(data, online) {
         var sinrColor = qualityColor('sinr', data.sinr);
 
         cards = [
-            noSim ? summaryCard('NETWORK', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM', '📱', null, COLOR_POOR) :
-                summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, '📡', null, '#38bdf8'),
-            summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', rsrpColor, sigSub, '📡', null, rsrpColor),
-            summaryCard('RADIO PURITY', sinrVal, sinrColor, puritySub, '⚡', null, sinrColor),
-            summaryCard('SIGNAL LEVEL', hasBars ? (barsVal + ' / 4') : 'NA', barsColor, barsSub, '📶', renderSignalBars(barsVal, barsColor), barsColor)
+            noSim ? summaryCard('NETWORK', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM', svgIcon('cell', 16, COLOR_POOR), null, COLOR_POOR) :
+                summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, svgIcon('cell', 16, '#38bdf8'), null, '#38bdf8'),
+            summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', rsrpColor, sigSub, svgIcon('signal', 16, rsrpColor), null, rsrpColor),
+            summaryCard('RADIO PURITY', sinrVal, sinrColor, puritySub, svgIcon('sinr', 16, sinrColor), null, sinrColor),
+            summaryCard('SIGNAL LEVEL', hasBars ? (barsVal + ' / 4') : 'NA', barsColor, barsSub, svgIcon('signal', 16, barsColor), renderSignalBars(barsVal, barsColor), barsColor)
         ];
     }
 
@@ -378,7 +415,7 @@ function summaryRow(data, online) {
 function colorDot(color) {
     return E('span', {
         'class': 'jodu-dot',
-        'style': 'background:' + color + ';box-shadow:0 0 8px ' + color + '80;'
+        'style': 'background:' + color + ';'
     }, '');
 }
 
@@ -448,10 +485,10 @@ function secondaryCellPanel(merged, widgetId) {
     var caActive = !isEmptyValue(band) || !isEmptyValue(pci) || !isEmptyValue(rsrp);
     if (!caActive) {
         return panel('Cellular Parameters (Secondary Cell)', E('div', { 'class': 'jodu-idle-panel' }, [
-            E('div', { 'style': 'font-size:2.2em;margin-bottom:8px;opacity:0.6;' }, '📶'),
+            E('div', { 'style': 'margin-bottom:8px;opacity:0.6;display:flex;justify-content:center;' }, [svgIcon('ca', 24, '#475569')]),
             E('h4', { 'style': 'margin:0 0 4px;color:#94a3b8;font-weight:600;' }, 'Carrier Aggregation Inactive'),
             E('p', { 'style': 'margin:0;color:#64748b;font-size:0.85em;' }, 'Secondary carrier activates dynamically during high throughput demand.')
-        ]), '⚡', null, widgetId);
+        ]), svgIcon('ca', 15, '#38bdf8'), null, widgetId);
     }
     var pBw = parseBwMHz(merged['bandwidth']);
     var sBw = parseBwMHz(merged['scc_bw']);
@@ -459,8 +496,8 @@ function secondaryCellPanel(merged, widgetId) {
     var caBadge = totalBw > 0 ? E('span', {
         'class': 'jodu-badge',
         'style': 'background:rgba(168,85,247,0.2);color:#c084fc;border:1px solid rgba(168,85,247,0.4);font-weight:700;'
-    }, '⚡ Total: ' + totalBw + ' MHz DL') : null;
-    return panel('Cellular Parameters (Secondary Cell)', cellTable('scc_', merged), '⚡', caBadge, widgetId);
+    }, 'Total: ' + totalBw + ' MHz DL') : null;
+    return panel('Cellular Parameters (Secondary Cell)', cellTable('scc_', merged), svgIcon('ca', 15, '#38bdf8'), caBadge, widgetId);
 }
 
 function cellTable(prefix, d) {
@@ -528,7 +565,7 @@ function cellTable(prefix, d) {
 function panel(title, contentNode, icon, extraHdr, widgetId) {
     var hdrChildren = [
         E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
-            icon ? E('span', { 'class': 'jodu-card-icon' }, icon) : '',
+            icon ? E('span', { 'class': 'jodu-card-icon' }, [icon]) : '',
             E('span', { 'class': 'jodu-card-title' }, title)
         ])
     ];
@@ -537,14 +574,14 @@ function panel(title, contentNode, icon, extraHdr, widgetId) {
     if (widgetId) {
         rightSide.push(E('button', {
             'class': 'jodu-panel-hide-btn',
-            'title': 'Hide this section (restore from Customize)',
+            'title': 'Hide this section (restore from Widgets)',
             'click': function (ev) {
                 ev.stopPropagation();
                 setWidgetVisibility(widgetId, false);
-                notify('Hidden "' + title + '". You can restore it anytime from "🎨 Customize".', 'info', 3500);
+                notify('Hidden "' + title + '". You can restore it anytime from "Widgets".', 'info', 3500);
                 if (triggerRefresh) triggerRefresh();
             }
-        }, '✕'));
+        }, [svgIcon('close', 12, '#64748b')]));
     }
     if (rightSide.length) {
         hdrChildren.push(E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, rightSide));
@@ -688,9 +725,22 @@ function nearbyCellsSection(data, widgetId) {
 
     var actionBtns = [];
     if (isLocked) {
-        actionBtns.push(E('button', { 'class': 'btn cbi-button-positive', 'style': 'font-size:0.8em;padding:4px 10px;border-radius:6px;margin-right:6px;', 'click': unlockCell }, '🔓 Unlock'));
+        actionBtns.push(E('button', {
+            'class': 'btn cbi-button-positive',
+            'style': 'font-size:0.8em;padding:4px 10px;border-radius:4px;margin-right:6px;display:inline-flex;align-items:center;gap:4px;',
+            'click': unlockCell
+        }, [
+            svgIcon('unlock', 12, '#fff'),
+            'Unlock'
+        ]));
     }
-    actionBtns.push(E('button', { 'class': 'btn jodu-btn-sm', 'click': function () { manualLockModal(servingPci, servingArfcn); } }, '🔒 Manual Lock'));
+    actionBtns.push(E('button', {
+        'class': 'btn jodu-btn-sm',
+        'click': function () { manualLockModal(servingPci, servingArfcn); }
+    }, [
+        svgIcon('lock', 12, '#94a3b8'),
+        'Manual Lock'
+    ]));
 
     var statusRow = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;' }, [
         E('div', { 'style': 'color:#94a3b8;font-size:0.85em;display:flex;align-items:center;gap:6px;' }, [
@@ -702,7 +752,7 @@ function nearbyCellsSection(data, widgetId) {
         return panel('Nearby Cells & Tower Scan', E('div', {}, [
             statusRow,
             E('p', { 'style': 'color:#64748b;font-size:0.88em;padding:12px 0;' }, 'No neighbouring cells detected in current sector scan. Use Manual Lock to bind to a specific tower.')
-        ]), '🛰️', null, widgetId);
+        ]), svgIcon('radar', 15, '#38bdf8'), null, widgetId);
     }
     var headerRow = E('tr', { 'class': 'jodu-th-tr' }, [
         E('th', { 'class': 'jodu-th' }, 'PCI'),
@@ -734,8 +784,8 @@ function nearbyCellsSection(data, widgetId) {
                 c.isServing ?
                     E('span', {
                         'class': 'jodu-badge',
-                        'style': 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);font-size:0.75em;padding:4px 8px;font-weight:600;'
-                    }, '🟢 Active') :
+                        'style': 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);font-size:0.72em;padding:3px 7px;font-weight:600;'
+                    }, 'ACTIVE') :
                     E('button', {
                         'class': 'btn jodu-btn-sm',
                         'click': (function (pci, arfcn) { return function () { lockCell(pci, arfcn); }; })(c.pci, c.arfcn)
@@ -746,7 +796,7 @@ function nearbyCellsSection(data, widgetId) {
     var table = E('div', { 'style': 'max-height:280px;overflow-y:auto' }, [
         E('table', { 'class': 'jodu-table' }, [headerRow].concat(rows))
     ]);
-    return panel('Nearby Cells & Tower Scan (' + cells.length + ' Towers)', E('div', {}, [statusRow, table]), '🛰️', null, widgetId);
+    return panel('Nearby Cells & Tower Scan (' + cells.length + ' Towers)', E('div', {}, [statusRow, table]), svgIcon('radar', 15, '#38bdf8'), null, widgetId);
 }
 
 function rebootOdu() {
@@ -786,7 +836,7 @@ function ethSpeedColor(mbps) {
 function ethSpeedSuggestion(mbps) {
     var v = parseFloat(mbps);
     if (isNaN(v) || v <= 0 || v >= 1000) return '';
-    return '⚠️ Link negotiated at ' + v + ' Mbps. Use a Cat6+ Ethernet cable or Gigabit port to achieve 1 Gbps+ speeds.';
+    return 'Link negotiated at ' + v + ' Mbps. Use a Cat6+ Ethernet cable or Gigabit port to achieve 1 Gbps+ speeds.';
 }
 
 function cdtPairBadge(p) {
@@ -800,7 +850,7 @@ function cdtPairBadge(p) {
 
     return E('div', {
         'class': 'jodu-cdt-pair-card',
-        'style': 'background:' + bg + ';border:1px solid ' + border + ';border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;'
+        'style': 'background:' + bg + ';border:1px solid ' + border + ';border-radius:4px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;'
     }, [
         E('div', {}, [
             E('div', { 'style': 'font-size:0.75em;color:#94a3b8;font-weight:600;' }, pairName),
@@ -833,11 +883,11 @@ function ethSection(data, widgetId) {
         var cdtBadge = E('span', {
             'class': 'jodu-badge',
             'style': allOk ? 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);font-size:0.72em;' : 'background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);font-size:0.72em;'
-        }, allOk ? ('🟢 Pairs A-D: Normal (Pass)' + lenStr) : '⚠️ Cable Fault Detected');
+        }, allOk ? ('PASS: Pairs A-D (Normal)' + lenStr) : 'FAULT: Cable Issue');
 
         var toggleBtn = E('button', {
             'class': 'btn jodu-btn-sm',
-            'style': 'background:rgba(255,255,255,0.06);color:#cbd5e1;border:1px solid rgba(255,255,255,0.1);font-size:0.74em;cursor:pointer;padding:3px 8px;',
+            'style': 'background:#1e293b;color:#cbd5e1;border:1px solid #334155;font-size:0.74em;cursor:pointer;padding:3px 8px;',
             'click': function (ev) {
                 ev.preventDefault();
                 cdtExpanded = !cdtExpanded;
@@ -850,7 +900,7 @@ function ethSection(data, widgetId) {
         }, cdtExpanded ? '▴ Hide Details' : '▾ Details & Pinout');
 
         var cdtHeader = E('div', {
-            'style': 'margin:14px 0 8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;'
+            'style': 'margin:14px 0 8px;padding-top:10px;border-top:1px solid #1e293b;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;'
         }, [
             E('div', { 'style': 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;' }, [
                 E('span', { 'style': 'font-size:0.82em;font-weight:700;letter-spacing:0.04em;color:#cbd5e1;' }, 'CABLE DIAGNOSTICS (CDT)'),
@@ -864,14 +914,14 @@ function ethSection(data, widgetId) {
         }, data.cdt.pairs.map(cdtPairBadge));
 
         var cdtNote = E('div', {
-            'style': 'font-size:0.78em;color:#cbd5e1;line-height:1.45;margin-bottom:8px;background:rgba(59,130,246,0.06);border:1px solid rgba(56,189,248,0.25);border-radius:8px;padding:9px 12px;'
+            'style': 'font-size:0.78em;color:#94a3b8;line-height:1.45;margin-bottom:8px;background:#0d1522;border:1px solid #1e293b;border-radius:4px;padding:9px 12px;'
         }, [
             E('div', { 'style': 'display:flex;align-items:flex-start;gap:8px;' }, [
-                E('span', { 'style': 'font-size:1.1em;line-height:1;' }, 'ℹ️'),
+                svgIcon('cable', 15, '#38bdf8'),
                 E('div', {}, [
-                    E('strong', { 'style': 'color:#38bdf8;' }, 'Cable Diagnostics Disclaimer: '),
-                    'Estimated cable length is an electrical measurement (TDR) and may report longer than actual due to passive PoE injector circuitry and transformer signal latency. ',
-                    E('strong', { 'style': 'color:#34d399;' }, 'Wire pair health status (Normal vs Fault) is 100% true and hardware-verified'),
+                    E('strong', { 'style': 'color:#38bdf8;' }, 'Cable Diagnostics: '),
+                    'Estimated cable length is an electrical measurement (TDR) and may report longer than physical due to passive PoE circuitry. ',
+                    E('strong', { 'style': 'color:#34d399;' }, 'Wire pair health status is hardware-verified'),
                     ' by the PHY, guaranteeing pin continuity for Gigabit data and PoE power.'
                 ])
             ])
@@ -888,16 +938,23 @@ function ethSection(data, widgetId) {
 
     var speedSuggestion = ethSpeedSuggestion(data.eth_speed);
     if (speedSuggestion) {
-        children.push(E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(239,68,68,0.12);color:#f87171;' }, speedSuggestion));
+        children.push(E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;' }, speedSuggestion));
     }
     var uptimeSec = parseInt(data.odu_uptime_sec, 10);
     if (!isNaN(uptimeSec) && uptimeSec > 86400 * 7) {
-        children.push(E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(245,158,11,0.12);color:#fbbf24;' }, '⚠️ High ODU uptime (' + formatUptime(data.odu_uptime_sec) + '). A periodic reboot improves 5G stability.'));
+        children.push(E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);color:#fbbf24;' }, 'High ODU uptime (' + formatUptime(data.odu_uptime_sec) + '). A periodic reboot improves 5G stability.'));
     }
     children.push(E('div', { 'style': 'margin-top:14px' }, [
-        E('button', { 'class': 'btn cbi-button-negative', 'style': 'width:100%;padding:8px;border-radius:8px;font-weight:600;', 'click': rebootOdu }, '🔄 Reboot 5G ODU')
+        E('button', {
+            'class': 'btn cbi-button-negative',
+            'style': 'width:100%;padding:8px;border-radius:4px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;',
+            'click': rebootOdu
+        }, [
+            svgIcon('refresh', 13, '#fff'),
+            'Reboot 5G ODU'
+        ])
     ]));
-    return panel('ODU Management & Hardware Control', E('div', {}, children), '🔌', null, widgetId);
+    return panel('ODU Management & Hardware Control', E('div', {}, children), svgIcon('cable', 15, '#38bdf8'), null, widgetId);
 }
 
 function parseDataSize(str) {
@@ -971,7 +1028,7 @@ function dataUsageSection(data, widgetId) {
         paramRow('Packet Loss', data.packet_loss, parseFloat(data.packet_loss) === 0 ? COLOR_GOOD : COLOR_OK)
     ];
     var table = E('table', { 'class': 'jodu-table' }, rows);
-    var note = E('div', { 'style': 'margin-top:10px;font-size:0.75em;color:#64748b;font-style:italic;' }, 'ℹ️ Session counters retrieved from ODU firmware.');
+    var note = E('div', { 'style': 'margin-top:10px;font-size:0.75em;color:#64748b;font-style:italic;' }, 'Session counters retrieved from ODU firmware.');
     var windows = [
         { label: 'Last 5 min', ms: 5 * 60 * 1000, color: COLOR_BLUE },
         { label: 'Last 1 hour', ms: 60 * 60 * 1000, color: COLOR_GOOD },
@@ -992,7 +1049,7 @@ function dataUsageSection(data, widgetId) {
         return paramRow(w.label, display, color);
     });
     var historyTable = E('table', { 'class': 'jodu-table', 'style': 'margin-top:8px;' }, historyRows);
-    return panel('Data Usage & Bandwidth Tracker', E('div', {}, [table, note, subheading('Usage Over Time'), historyTable]), '📈', null, widgetId);
+    return panel('Data Usage & Bandwidth Tracker', E('div', {}, [table, note, subheading('Usage Over Time'), historyTable]), svgIcon('speed', 15, '#38bdf8'), null, widgetId);
 }
 
 function tempColor(celsius) {
@@ -1072,8 +1129,8 @@ function circleGauge(pct, color, size) {
     var frac = isNaN(v) ? 0 : Math.max(0, Math.min(100, v)) / 100;
     var offset = c * (1 - frac);
     var mid = size / 2;
-    var svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="display:block;margin:0 auto;filter:drop-shadow(0 0 6px ' + color + '40);">' +
-        '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="' + stroke + '"/>' +
+    var svg = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="display:block;margin:0 auto;">' +
+        '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="#1e293b" stroke-width="' + stroke + '"/>' +
         '<circle cx="' + mid + '" cy="' + mid + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + offset.toFixed(1) + '" transform="rotate(-90 ' + mid + ' ' + mid + ')" style="transition:stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1), stroke 0.4s ease;"/></svg>';
     var wrap = E('div', { 'style': 'position:relative;width:' + size + 'px;height:' + size + 'px;margin:8px auto;' });
     wrap.innerHTML = svg;
@@ -1110,7 +1167,7 @@ function sparkline(history, color, width, height) {
     var svg = '<svg width="100%" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none" style="display:block;overflow:visible;">' +
         '<defs>' +
         '<linearGradient id="' + gradId + '" x1="0" y1="0" x2="0" y2="1">' +
-        '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.28"/>' +
+        '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.25"/>' +
         '<stop offset="100%" stop-color="' + color + '" stop-opacity="0.0"/>' +
         '</linearGradient>' +
         '</defs>' +
@@ -1149,7 +1206,7 @@ function cpuGaugePanel(data, widgetId) {
         subheading('Usage History (5 min)'),
         sparkline(cpuHistory, color)
     ]);
-    return panel(title, content, '⚙️', null, widgetId);
+    return panel(title, content, svgIcon('cpu', 15, '#38bdf8'), null, widgetId);
 }
 
 function memGaugePanel(data, widgetId) {
@@ -1166,9 +1223,9 @@ function memGaugePanel(data, widgetId) {
     var ramNote = '';
     if (totalMb != null) {
         if (totalMb >= 600) {
-            ramNote = E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(59,130,246,0.12);color:#60a5fa;' }, 'ℹ️ This ODU supports 2.5 Gigabit Ethernet.');
+            ramNote = E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);color:#60a5fa;' }, 'This ODU supports 2.5 Gigabit Ethernet.');
         } else if (totalMb < 200) {
-            ramNote = E('div', { 'class': 'jodu-alert-box', 'style': 'background:rgba(255,255,255,0.05);color:#94a3b8;' }, 'ℹ️ This ODU supports 1 Gigabit Ethernet.');
+            ramNote = E('div', { 'class': 'jodu-alert-box', 'style': 'background:#0a0e17;border:1px solid #1e293b;color:#94a3b8;' }, 'This ODU supports 1 Gigabit Ethernet.');
         }
     }
     var content = E('div', {}, [
@@ -1183,7 +1240,7 @@ function memGaugePanel(data, widgetId) {
         subheading('Usage History (5 min)'),
         sparkline(memHistory, color)
     ]);
-    return panel('Memory (RAM)', content, '🧠', null, widgetId);
+    return panel('Memory (RAM)', content, svgIcon('ram', 15, '#38bdf8'), null, widgetId);
 }
 
 function cpuLoadBar(label, pct) {
@@ -1207,20 +1264,20 @@ function cpuDetailPanel(data, widgetId) {
         cpuLoadBar('I/O Wait', data.odu_cpu_iowait),
         cpuLoadBar('Hardware IRQ', data.odu_cpu_irq),
         cpuLoadBar('Software IRQ', data.odu_cpu_softirq),
-        E('div', { 'style': 'margin-top:12px;border-top:1px solid rgba(255,255,255,0.08);padding-top:6px;' }, [
+        E('div', { 'style': 'margin-top:12px;border-top:1px solid #1e293b;padding-top:6px;' }, [
             statLine('System Tasks', (data.odu_tasks_running !== '--' ? data.odu_tasks_running : 'NA') + ' / ' + (data.odu_tasks_total !== '--' ? data.odu_tasks_total : 'NA')),
             statLine('Context Switches / s', data.odu_ctxt_rate !== '--' ? data.odu_ctxt_rate + ' /s' : 'NA'),
             statLine('Hardware Interrupts / s', data.odu_intr_rate !== '--' ? data.odu_intr_rate + ' /s' : 'NA'),
             statLine('Active Connections', (data.odu_conntrack_count !== '--' && data.odu_conntrack_max !== '--') ? (data.odu_conntrack_count + ' / ' + data.odu_conntrack_max) : 'NA')
         ])
     ]);
-    return panel('CPU Detailed Breakdown', content, '📊', null, widgetId);
+    return panel('CPU Detailed Breakdown', content, svgIcon('chip', 15, '#38bdf8'), null, widgetId);
 }
 
 function thermalSection(data, widgetId) {
     var zones = Array.isArray(data.thermal_zones) ? data.thermal_zones : [];
     if (!zones.length) {
-        return panel('Internal Thermal Sensors', E('p', { 'style': 'color:#64748b;font-size:0.9em;padding:8px 0;' }, 'No temperature telemetry available (verify Settings).'), '🌡️', null, widgetId);
+        return panel('Internal Thermal Sensors', E('p', { 'style': 'color:#64748b;font-size:0.9em;padding:8px 0;' }, 'No temperature telemetry available (verify Settings).'), svgIcon('temp', 15, '#38bdf8'), null, widgetId);
     }
     var maxZone = zones.reduce(function (a, b) {
         return (parseFloat(b.temp_c) > parseFloat(a.temp_c)) ? b : a;
@@ -1245,28 +1302,28 @@ function thermalSection(data, widgetId) {
     var table = E('div', { 'id': 'jodu5164x-thermal-scroll', 'class': 'jodu-thermal-grid' }, colElements);
     var maxLabel = friendlySensorName(maxZone.type, maxZone.zone);
     var maxColor = tempColor(maxZone.temp_c);
-    var header = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:6px 10px;background:rgba(255,255,255,0.02);border-radius:8px;' }, [
+    var header = E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:6px 10px;background:#0a0e17;border:1px solid #1e293b;border-radius:4px;' }, [
         E('span', { 'style': 'color:#94a3b8;font-size:0.85em;' }, zones.length + ' active sensors detected'),
-        E('span', { 'class': 'jodu-badge', 'style': 'background:' + maxColor + '20;color:' + maxColor + ';border:1px solid ' + maxColor + '50;font-weight:700;' }, '🔥 Hottest: ' + maxZone.temp_c + ' °C (' + maxLabel + ')')
+        E('span', { 'class': 'jodu-badge', 'style': 'background:' + maxColor + '20;color:' + maxColor + ';border:1px solid ' + maxColor + '50;font-weight:700;' }, 'MAX: ' + maxZone.temp_c + ' °C (' + maxLabel + ')')
     ]);
-    return panel('Internal Thermal Sensors', E('div', {}, [header, table]), '🌡️', null, widgetId);
+    return panel('Internal Thermal Sensors', E('div', {}, [header, table]), svgIcon('temp', 15, '#38bdf8'), null, widgetId);
 }
 
 function emptyDashboardPlaceholder() {
     return E('div', { 'class': 'jodu-empty-widgets-box' }, [
-        E('div', { 'style': 'font-size:3em;margin-bottom:12px;' }, '🧩'),
+        E('div', { 'style': 'margin-bottom:12px;display:flex;justify-content:center;' }, [svgIcon('customize', 32, '#64748b')]),
         E('h3', { 'style': 'margin:0 0 8px;font-size:1.3em;color:#f8fafc;' }, 'All Dashboard Widgets Are Hidden'),
         E('p', { 'style': 'color:#94a3b8;max-width:440px;margin:0 auto 20px;font-size:0.9em;line-height:1.5;' },
             'You customized the dashboard and closed all sections. You can restore widgets anytime from the Customize menu.'),
         E('button', {
             'class': 'btn cbi-button-positive',
-            'style': 'padding:8px 22px;font-weight:700;border-radius:8px;',
+            'style': 'padding:8px 22px;font-weight:700;border-radius:4px;',
             'click': function () {
                 resetWidgetVisibility();
                 notify('All widgets restored to default layout.', 'info', 3000);
                 if (triggerRefresh) triggerRefresh();
             }
-        }, '✨ Restore All Widgets')
+        }, 'Restore All Widgets')
     ]);
 }
 
@@ -1276,7 +1333,7 @@ function renderDashboard(data) {
 
     if (disabled) {
         return E('div', { 'class': 'jodu-paused-box' }, [
-            E('div', { 'style': 'font-size:2.6em;margin-bottom:12px;' }, '⏸️'),
+            E('div', { 'style': 'margin-bottom:12px;display:flex;justify-content:center;' }, [svgIcon('pause', 32, '#64748b')]),
             E('h3', { 'style': 'margin:0 0 8px;font-size:1.3em;color:#f8fafc;' }, 'ODU Monitoring Paused'),
             E('p', { 'style': 'color:#94a3b8;max-width:480px;margin:0 auto;line-height:1.5;font-size:0.92em;' },
                 'The session has been freed so you can log into the native ODU WebUI without single-login conflicts. Click "Monitoring: OFF" above when ready to resume live polling.')
@@ -1293,8 +1350,8 @@ function renderDashboard(data) {
         }
     }
     var rebootBanner = rebootState.inProgress ? E('div', { 'class': 'jodu-alert-banner' }, [
-        E('span', { 'style': 'margin-right:8px;' }, '🔄'),
-        'ODU is rebooting — please wait, connection will restore automatically...'
+        svgIcon('refresh', 13, '#38bdf8'),
+        E('span', { 'style': 'margin-left:8px;' }, 'ODU is rebooting — please wait, connection will restore automatically...')
     ]) : '';
 
     if (!online) {
@@ -1327,7 +1384,7 @@ function renderDashboard(data) {
 
     var noSim = data.sim_status === 'missing';
     var primaryCellContent = noSim ? E('div', { 'class': 'jodu-idle-panel' }, [
-        E('div', { 'style': 'font-size:2.2em;margin-bottom:8px;' }, '📱'),
+        E('div', { 'style': 'margin-bottom:8px;display:flex;justify-content:center;' }, [svgIcon('cell', 28, '#f87171')]),
         E('h4', { 'style': 'margin:0;color:#f87171;font-weight:700;' }, 'No SIM Card Detected'),
         E('p', { 'style': 'margin:4px 0 0;color:#94a3b8;font-size:0.88em;' }, 'Please insert a pSIM or activate eSIM profile on your ODU.')
     ]) : cellTable('', merged);
@@ -1335,7 +1392,7 @@ function renderDashboard(data) {
     var sumRow = summaryRow(data, true);
 
     var cellPanels = buildAutoGrid([
-        isWidgetVisible('primary_cell') ? panel('Cellular Parameters (Primary Cell)', primaryCellContent, '📡', null, 'primary_cell') : null,
+        isWidgetVisible('primary_cell') ? panel('Cellular Parameters (Primary Cell)', primaryCellContent, svgIcon('cell', 15, '#38bdf8'), null, 'primary_cell') : null,
         isWidgetVisible('secondary_cell') ? secondaryCellPanel(merged, 'secondary_cell') : null
     ]);
 
@@ -1361,28 +1418,27 @@ function renderDashboard(data) {
     var telnetNotice = '';
     if (data.telnet_status && data.telnet_status !== 'ok') {
         var isUserReq = data.telnet_status === 'username_required';
-        var bannerIcon = isUserReq ? '👤' : (data.telnet_status === 'unreachable' ? '🔌' : '🔐');
         var bannerTitle = isUserReq ? 'Telnet Username Required' : (data.telnet_status === 'unreachable' ? 'Telnet Service Unreachable' : 'Telnet Authentication Failed');
         var bannerDesc = data.telnet_message || (isUserReq ? 'This ODU prompts for a username first (e.g. root on d2). Click Settings to enter your Telnet Username.' : 'Telnet login failed. Check your Telnet credentials in Settings.');
 
         telnetNotice = E('div', {
-            'style': 'background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);border-radius:12px;padding:12px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;box-shadow:0 4px 14px rgba(0,0,0,0.25);'
+            'style': 'background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);border-radius:6px;padding:12px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;'
         }, [
             E('div', { 'style': 'display:flex;align-items:center;gap:12px;' }, [
-                E('span', { 'style': 'font-size:1.6em;line-height:1;' }, bannerIcon),
+                svgIcon('chip', 20, '#f87171'),
                 E('div', {}, [
                     E('div', { 'style': 'color:#f87171;font-weight:700;font-size:0.94em;margin-bottom:2px;' }, bannerTitle),
                     E('div', { 'style': 'color:#cbd5e1;font-size:0.84em;line-height:1.45;' }, bannerDesc)
                 ])
             ]),
             E('button', {
-                'class': 'btn cbi-button-action',
-                'style': 'background:#3b82f6;border:none;color:#ffffff;font-size:0.84em;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s;',
+                'class': 'btn jodu-btn-sm',
+                'style': 'background:#0369a1;border-color:#0284c7;color:#ffffff;font-size:0.84em;font-weight:600;padding:6px 14px;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;',
                 'click': function () {
                     if (openSettings) openSettings();
                 }
             }, [
-                E('span', {}, '⚙️'),
+                svgIcon('settings', 13, '#fff'),
                 'Configure Settings'
             ])
         ]);
@@ -1482,7 +1538,7 @@ return view.extend({
                 return E('label', { 'class': 'jodu-widget-item' }, [
                     E('div', { 'style': 'display:flex;align-items:center;gap:12px;' }, [
                         cb,
-                        E('span', { 'style': 'font-size:1.4em;line-height:1;' }, w.icon),
+                        svgIcon(w.icon, 18, '#38bdf8'),
                         E('div', { 'style': 'flex:1;' }, [
                             E('div', { 'style': 'font-weight:700;color:#f8fafc;font-size:0.92em;' }, w.name),
                             E('div', { 'style': 'color:#94a3b8;font-size:0.8em;margin-top:2px;' }, w.desc)
@@ -1492,7 +1548,7 @@ return view.extend({
             });
 
             var quickActions = E('div', {
-                'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding:8px 12px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;gap:8px;'
+                'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding:8px 12px;background:#0a0e17;border-radius:4px;border:1px solid #1e293b;flex-wrap:wrap;gap:8px;'
             }, [
                 E('span', { 'style': 'font-size:0.82em;color:#94a3b8;' }, 'Toggle sections on or off to personalize your dashboard layout:'),
                 E('div', { 'style': 'display:flex;gap:8px;' }, [
@@ -1549,7 +1605,7 @@ return view.extend({
                 ])
             ]);
 
-            ui.showModal('🎨 Customize Dashboard Widgets', [
+            ui.showModal('Customize Telemetry Widgets', [
                 quickActions,
                 E('div', { 'style': 'display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto;padding-right:4px;' }, items),
                 footer
@@ -1597,28 +1653,28 @@ return view.extend({
                     E('span', { 'style': 'color:#f8fafc;font-size:0.88em;font-weight:600;' }, 'Enable daily scheduled reboot')
                 ]);
 
-                var secWeb = modalSection('WebUI Credentials', '🌐', [
+                var secWeb = modalSection('WebUI Credentials', svgIcon('globe', 14, '#38bdf8'), [
                     field('ODU IP Address', hostInput),
                     field('WebUI Username', userInput),
                     field('WebUI Password', passInput)
                 ]);
 
-                var secTelnet = modalSection('Telnet Telemetry Service', '⚡', [
+                var secTelnet = modalSection('Telnet Telemetry Service', svgIcon('chip', 14, '#38bdf8'), [
                     field('Telnet Port', portInput),
                     field('Telnet Username', telnetUserInput, 'Required if your ODU prompts for a login username first (e.g. root on d2). Leave blank if ODU directly asks for password (d1).'),
                     field('Telnet Password', telnetPassInput, 'Telnet login password configured on ODU. Leave blank if none.')
                 ]);
 
-                var secPoll = modalSection('Telemetry Polling Rate', '⏱️', [
+                var secPoll = modalSection('Telemetry Polling Rate', svgIcon('refresh', 14, '#38bdf8'), [
                     field('Stats Update Interval (1 - 10s)', intervalInput, 'Select how often LuCI and the background daemon query ODU radio and CPU stats')
                 ]);
 
-                var secReboot = modalSection('Automated Maintenance', '🔄', [
+                var secReboot = modalSection('Automated Maintenance', svgIcon('settings', 14, '#38bdf8'), [
                     scheduleRow,
                     field('Scheduled Reboot Time', rebootTimeInput)
                 ]);
 
-                ui.showModal('⚙️ ODU Configuration & Settings', [
+                ui.showModal('ODU Configuration & Settings', [
                     secWeb,
                     secTelnet,
                     secPoll,
@@ -1724,27 +1780,33 @@ return view.extend({
             var audioToggleBtn = E('button', {
                 'id': 'jodu-aim-audio-btn',
                 'class': 'btn jodu-aim-btn',
-                'style': aimingSession.audioMuted ? 'background:rgba(255,255,255,0.06);color:#94a3b8;border-color:rgba(255,255,255,0.12);' : 'background:rgba(16,185,129,0.2);color:#34d399;border-color:rgba(16,185,129,0.4);',
+                'style': aimingSession.audioMuted ? 'background:#1e293b;color:#94a3b8;border-color:#334155;' : 'background:rgba(16,185,129,0.15);color:#34d399;border-color:rgba(16,185,129,0.3);',
                 'click': function () {
                     aimingSession.audioMuted = !aimingSession.audioMuted;
+                    audioToggleBtn.innerHTML = '';
                     if (!aimingSession.audioMuted) {
-                        audioToggleBtn.textContent = '🔊 Audio Tone: ON';
-                        audioToggleBtn.style.background = 'rgba(16,185,129,0.2)';
+                        audioToggleBtn.appendChild(svgIcon('sound', 12, '#34d399'));
+                        audioToggleBtn.appendChild(E('span', { 'style': 'margin-left:5px;' }, 'Audio: ON'));
+                        audioToggleBtn.style.background = 'rgba(16,185,129,0.15)';
                         audioToggleBtn.style.color = '#34d399';
-                        audioToggleBtn.style.borderColor = 'rgba(16,185,129,0.4)';
+                        audioToggleBtn.style.borderColor = 'rgba(16,185,129,0.3)';
                         if (lastStatusData) playAimingBeep(lastStatusData.rsrp);
                     } else {
-                        audioToggleBtn.textContent = '🔇 Audio Tone: OFF';
-                        audioToggleBtn.style.background = 'rgba(255,255,255,0.06)';
+                        audioToggleBtn.appendChild(svgIcon('soundOff', 12, '#94a3b8'));
+                        audioToggleBtn.appendChild(E('span', { 'style': 'margin-left:5px;' }, 'Audio: OFF'));
+                        audioToggleBtn.style.background = '#1e293b';
                         audioToggleBtn.style.color = '#94a3b8';
-                        audioToggleBtn.style.borderColor = 'rgba(255,255,255,0.12)';
+                        audioToggleBtn.style.borderColor = '#334155';
                     }
                 }
-            }, aimingSession.audioMuted ? '🔇 Audio Tone: OFF' : '🔊 Audio Tone: ON');
+            }, [
+                svgIcon(aimingSession.audioMuted ? 'soundOff' : 'sound', 12, aimingSession.audioMuted ? '#94a3b8' : '#34d399'),
+                E('span', { 'style': 'margin-left:5px;' }, aimingSession.audioMuted ? 'Audio: OFF' : 'Audio: ON')
+            ]);
 
             var resetPeakBtn = E('button', {
                 'class': 'btn jodu-aim-btn',
-                'style': 'background:rgba(255,255,255,0.06);color:#f1f5f9;border-color:rgba(255,255,255,0.12);',
+                'style': 'background:#1e293b;color:#cbd5e1;border-color:#334155;',
                 'click': function () {
                     if (lastStatusData) {
                         var curR = parseFloat(lastStatusData.rsrp);
@@ -1760,12 +1822,15 @@ return view.extend({
                     }
                     notify('Peak memory baseline reset.', 'info', 2000);
                 }
-            }, '🔄 Reset Peak');
+            }, [
+                svgIcon('refresh', 12, '#cbd5e1'),
+                E('span', { 'style': 'margin-left:5px;' }, 'Reset Peak')
+            ]);
 
             var modalTop = E('div', { 'class': 'jodu-aiming-top' }, [
                 E('div', { 'style': 'display:flex;align-items:center;gap:8px;' }, [
                     E('span', { 'class': 'jodu-pulse-dot', 'style': 'background:#38bdf8;' }),
-                    E('span', { 'style': 'font-weight:700;font-size:0.9em;letter-spacing:0.04em;color:#38bdf8;' }, 'REAL-TIME 1S ALIGNMENT STREAM')
+                    E('span', { 'style': 'font-weight:700;font-size:0.85em;letter-spacing:0.06em;color:#38bdf8;' }, 'REAL-TIME 1S ALIGNMENT STREAM')
                 ]),
                 E('div', { 'style': 'display:flex;gap:8px;align-items:center;' }, [
                     audioToggleBtn,
@@ -1781,8 +1846,8 @@ return view.extend({
                     E('span', { 'class': 'jodu-aiming-unit' }, 'dBm')
                 ]),
                 E('div', { 'style': 'display:flex;justify-content:center;gap:8px;align-items:center;margin-bottom:6px;' }, [
-                    E('span', { 'id': 'jodu-aim-rsrp-badge', 'class': 'jodu-badge', 'style': 'background:rgba(255,255,255,0.06);color:#94a3b8;' }, 'Sampling...'),
-                    E('span', { 'id': 'jodu-aim-rsrp-delta', 'class': 'jodu-badge', 'style': 'background:rgba(255,255,255,0.06);color:#94a3b8;' }, '● 0 dBm (baseline)')
+                    E('span', { 'id': 'jodu-aim-rsrp-badge', 'class': 'jodu-badge', 'style': 'background:#1e293b;color:#94a3b8;' }, 'Sampling...'),
+                    E('span', { 'id': 'jodu-aim-rsrp-delta', 'class': 'jodu-badge', 'style': 'background:#1e293b;color:#94a3b8;' }, '● 0 dBm (baseline)')
                 ]),
                 E('div', { 'class': 'jodu-aiming-meter-track' }, [
                     E('div', { 'id': 'jodu-aim-rsrp-fill', 'class': 'jodu-aiming-meter-fill', 'style': 'width:0%;background:#38bdf8;' }),
@@ -1790,7 +1855,7 @@ return view.extend({
                 ]),
                 E('div', { 'style': 'display:flex;justify-content:space-between;font-size:0.75em;color:#64748b;margin-top:4px;' }, [
                     E('span', {}, '-120 dBm (Poor)'),
-                    E('span', { 'id': 'jodu-aim-rsrp-peak', 'style': 'color:#facc15;font-weight:700;' }, 'Peak: -- dBm'),
+                    E('span', { 'id': 'jodu-aim-rsrp-peak', 'style': 'color:#facc15;font-weight:700;' }, 'PEAK: -- dBm'),
                     E('span', {}, '-60 dBm (Max)')
                 ])
             ]);
@@ -1803,8 +1868,8 @@ return view.extend({
                     E('span', { 'class': 'jodu-aiming-unit' }, 'dB')
                 ]),
                 E('div', { 'style': 'display:flex;justify-content:center;gap:8px;align-items:center;margin-bottom:6px;' }, [
-                    E('span', { 'id': 'jodu-aim-sinr-badge', 'class': 'jodu-badge', 'style': 'background:rgba(255,255,255,0.06);color:#94a3b8;' }, 'Sampling...'),
-                    E('span', { 'id': 'jodu-aim-rsrq-badge', 'class': 'jodu-badge', 'style': 'background:rgba(255,255,255,0.06);color:#94a3b8;' }, 'RSRQ: -- dB')
+                    E('span', { 'id': 'jodu-aim-sinr-badge', 'class': 'jodu-badge', 'style': 'background:#1e293b;color:#94a3b8;' }, 'Sampling...'),
+                    E('span', { 'id': 'jodu-aim-rsrq-badge', 'class': 'jodu-badge', 'style': 'background:#1e293b;color:#94a3b8;' }, 'RSRQ: -- dB')
                 ]),
                 E('div', { 'class': 'jodu-aiming-meter-track' }, [
                     E('div', { 'id': 'jodu-aim-sinr-fill', 'class': 'jodu-aiming-meter-fill', 'style': 'width:0%;background:#818cf8;' }),
@@ -1812,7 +1877,7 @@ return view.extend({
                 ]),
                 E('div', { 'style': 'display:flex;justify-content:space-between;font-size:0.75em;color:#64748b;margin-top:4px;' }, [
                     E('span', {}, '-5 dB (Noisy)'),
-                    E('span', { 'id': 'jodu-aim-sinr-peak', 'style': 'color:#facc15;font-weight:700;' }, 'Peak: -- dB'),
+                    E('span', { 'id': 'jodu-aim-sinr-peak', 'style': 'color:#facc15;font-weight:700;' }, 'PEAK: -- dB'),
                     E('span', {}, '+30 dB (Pristine)')
                 ])
             ]);
@@ -1826,7 +1891,7 @@ return view.extend({
             var handoverAlert = E('div', {
                 'id': 'jodu-aim-handover',
                 'class': 'jodu-alert-banner',
-                'style': 'display:none;background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.35);color:#fbbf24;margin-bottom:14px;text-align:left;'
+                'style': 'display:none;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.35);color:#fbbf24;margin-bottom:14px;text-align:left;'
             }, '');
 
             // Cell Context Bar
@@ -1851,7 +1916,10 @@ return view.extend({
 
             // Field Guide
             var guide = E('div', { 'class': 'jodu-aiming-guide' }, [
-                E('div', { 'style': 'font-weight:700;color:#38bdf8;margin-bottom:4px;' }, '💡 Outdoor Antenna Aiming Quick Tips:'),
+                E('div', { 'style': 'font-weight:700;color:#38bdf8;margin-bottom:4px;display:flex;align-items:center;gap:6px;' }, [
+                    svgIcon('radar', 13, '#38bdf8'),
+                    'Outdoor Antenna Aiming Field Guide:'
+                ]),
                 E('ul', { 'style': 'margin:0;padding-left:18px;' }, [
                     E('li', {}, 'Rotate the antenna horizontally in slow 5°–10° increments and pause for 2 seconds at each angle to let modem AGC settle.'),
                     E('li', {}, 'Use "Reset Peak" whenever relocating or adjusting elevation to establish a fresh baseline.'),
@@ -1862,9 +1930,9 @@ return view.extend({
             var footer = E('div', { 'style': 'display:flex;justify-content:flex-end;gap:10px;margin-top:16px;' }, [
                 E('button', {
                     'class': 'btn cbi-button-neutral',
-                    'style': 'padding:8px 20px;border-radius:8px;font-weight:600;',
+                    'style': 'padding:6px 18px;border-radius:4px;font-weight:600;',
                     'click': closeAimingModal
-                }, '✖️ Exit Aiming Mode')
+                }, 'Exit Aiming Mode')
             ]);
 
             var modalRoot = E('div', { 'id': 'jodu-aiming-modal-root', 'class': 'jodu-aiming-modal' }, [
@@ -1876,7 +1944,7 @@ return view.extend({
                 footer
             ]);
 
-            ui.showModal('🎯 Outdoor Antenna Alignment / Aiming Mode', [modalRoot]);
+            ui.showModal('Outdoor Antenna Alignment & RF Telemetry', [modalRoot]);
 
             if (lastStatusData) {
                 updateAimingModal(lastStatusData);
@@ -1939,7 +2007,7 @@ return view.extend({
                         } else {
                             rsrpDelta.textContent = '● 0 dBm (baseline)';
                             rsrpDelta.style.color = '#94a3b8';
-                            rsrpDelta.style.background = 'rgba(255,255,255,0.06)';
+                            rsrpDelta.style.background = '#1e293b';
                         }
                     }
 
@@ -1952,7 +2020,7 @@ return view.extend({
                         var peakPct = Math.max(0, Math.min(100, Math.round(((aimingSession.peakRsrp - (-120)) / 60) * 100)));
                         rsrpPeakMarker.style.display = 'block';
                         rsrpPeakMarker.style.left = peakPct + '%';
-                        rsrpPeakText.textContent = '🏆 Peak: ' + aimingSession.peakRsrp.toFixed(0) + ' dBm';
+                        rsrpPeakText.textContent = 'PEAK: ' + aimingSession.peakRsrp.toFixed(0) + ' dBm';
                     }
                 } else {
                     rsrpEl.textContent = '--';
@@ -1988,7 +2056,7 @@ return view.extend({
                         var peakPctS = Math.max(0, Math.min(100, Math.round(((aimingSession.peakSinr - (-5)) / 35) * 100)));
                         sinrPeakMarker.style.display = 'block';
                         sinrPeakMarker.style.left = peakPctS + '%';
-                        sinrPeakText.textContent = '🏆 Peak: ' + (aimingSession.peakSinr > 0 ? '+' : '') + aimingSession.peakSinr.toFixed(0) + ' dB';
+                        sinrPeakText.textContent = 'PEAK: ' + (aimingSession.peakSinr > 0 ? '+' : '') + aimingSession.peakSinr.toFixed(0) + ' dB';
                     }
                 } else {
                     sinrEl.textContent = '--';
@@ -2028,7 +2096,7 @@ return view.extend({
                     aimingSession.initialPci = pci;
                 } else if (aimingSession.initialPci !== pci && handoverEl) {
                     handoverEl.style.display = 'block';
-                    handoverEl.innerHTML = '⚠️ <strong>TOWER HANDOVER DETECTED:</strong> Serving Cell changed from PCI <strong>' +
+                    handoverEl.innerHTML = '<strong>TOWER HANDOVER DETECTED:</strong> Serving Cell changed from PCI <strong>' +
                         aimingSession.initialPci + '</strong> to <strong>' + pci + '</strong>! You may have turned away from your target tower.';
                 }
             }
@@ -2072,8 +2140,8 @@ return view.extend({
             var isOn = st.server_link !== 'DISABLED';
             toggleBtn.setAttribute('data-state', isOn ? 'on' : 'off');
             dom.content(toggleBtn, [
-                isOn ? E('span', { 'class': 'jodu-pulse-dot' }) : '⏸️ ',
-                isOn ? 'Monitoring: ON' : 'Monitoring: OFF'
+                isOn ? E('span', { 'class': 'jodu-pulse-dot' }) : svgIcon('play', 12, '#94a3b8'),
+                E('span', { 'style': 'margin-left:5px;' }, isOn ? 'Monitoring: ON' : 'Monitoring: OFF')
             ]);
             toggleBtn.style.color = isOn ? COLOR_GOOD : COLOR_POOR;
             toggleBtn.style.borderColor = isOn ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)';
@@ -2081,140 +2149,160 @@ return view.extend({
 
         var aimingBtn = E('button', {
             'class': 'btn jodu-top-btn',
-            'style': 'background:linear-gradient(135deg, rgba(14,165,233,0.18), rgba(99,102,241,0.18));border:1px solid rgba(56,189,248,0.4);color:#38bdf8;',
+            'style': 'color:#38bdf8;border-color:#1e3a5f;',
             'click': ui.createHandlerFn(this, openAimingModal)
-        }, '🎯 Aiming Mode');
+        }, [
+            svgIcon('radar', 13, '#38bdf8'),
+            E('span', { 'style': 'margin-left:5px;' }, 'Aiming Mode')
+        ]);
 
         var customizeBtn = E('button', {
             'class': 'btn jodu-top-btn',
-            'style': 'background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.35);color:#c084fc;',
             'click': ui.createHandlerFn(this, showCustomizeModal)
-        }, '🎨 Customize');
+        }, [
+            svgIcon('customize', 13, '#94a3b8'),
+            E('span', { 'style': 'margin-left:5px;' }, 'Widgets')
+        ]);
 
         var refreshBtn = E('button', {
             'class': 'btn jodu-top-btn',
             'click': ui.createHandlerFn(this, function () {
-                refreshBtn.textContent = '🔄 ...';
-                return refreshNow().then(function () {
-                    refreshBtn.textContent = '🔄 Refresh';
+                refreshBtn.innerHTML = '';
+                refreshBtn.appendChild(svgIcon('refresh', 13, '#38bdf8'));
+                refreshBtn.appendChild(E('span', { 'style': 'margin-left:5px;' }, 'Syncing...'));
+                refreshNow().then(function () {
+                    refreshBtn.innerHTML = '';
+                    refreshBtn.appendChild(svgIcon('refresh', 13, '#94a3b8'));
+                    refreshBtn.appendChild(E('span', { 'style': 'margin-left:5px;' }, 'Refresh'));
                 });
             })
-        }, '🔄 Refresh');
+        }, [
+            svgIcon('refresh', 13, '#94a3b8'),
+            E('span', { 'style': 'margin-left:5px;' }, 'Refresh')
+        ]);
 
         var settingsBtn = E('button', {
             'class': 'btn jodu-top-btn',
             'click': ui.createHandlerFn(this, openSettingsModal)
-        }, '⚙️ Settings');
+        }, [
+            svgIcon('settings', 13, '#94a3b8'),
+            E('span', { 'style': 'margin-left:5px;' }, 'Settings')
+        ]);
 
-        // Scoped Stylesheet for Modern Aesthetics
+        // Scoped Stylesheet for Modern Industrial Aesthetics
         var styleNode = E('style', {}, [
-            '.jodu-wrapper { background:radial-gradient(circle at 15% 15%, rgba(14, 165, 233, 0.08) 0%, transparent 45%), radial-gradient(circle at 85% 85%, rgba(139, 92, 246, 0.08) 0%, transparent 45%), #0a0f1d; color:#e2e8f0; border-radius:18px; padding:22px 24px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 12px 40px rgba(0,0,0,0.35); box-sizing:border-box; }',
-            '.jodu-top-bar { display:flex;justify-content:space-between;align-items:center;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:20px;flex-wrap:wrap;gap:14px; }',
-            '.jodu-title-block h2 { margin:0;font-size:1.55em;font-weight:800;letter-spacing:0.02em;background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block; }',
-            '.jodu-subtitle { font-size:0.75em;letter-spacing:0.12em;text-transform:uppercase;color:#64748b;margin-top:2px;font-weight:600; }',
-            '.jodu-actions { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }',
-            '.jodu-top-btn { font-size:0.85em;padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);transition:all 0.2s ease;font-weight:600;color:#f1f5f9;cursor:pointer; }',
-            '.jodu-top-btn:hover { background:rgba(255,255,255,0.12);transform:translateY(-1px); }',
-            '.jodu-pulse-dot { display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 rgba(16,185,129,0.6);animation:jodu-pulse 2s infinite;margin-right:6px;vertical-align:middle; }',
-            '@keyframes jodu-pulse { 0% { box-shadow:0 0 0 0 rgba(16,185,129,0.7); } 70% { box-shadow:0 0 0 8px rgba(16,185,129,0); } 100% { box-shadow:0 0 0 0 rgba(16,185,129,0); } }',
-            '.jodu-sig-bar { transition: background 0.35s ease, box-shadow 0.35s ease; }',
-            '.jodu-signal-meter-max { filter: drop-shadow(0 0 5px rgba(16,185,129,0.5)); }',
-            '.jodu-discover-banner { animation:jodu-discover-glow 3.5s infinite ease-in-out; }',
-            '@keyframes jodu-discover-glow { 0%, 100% { box-shadow:0 0 14px rgba(139,92,246,0.22); border-color:rgba(139,92,246,0.45); } 50% { box-shadow:0 0 26px rgba(56,189,248,0.38); border-color:rgba(56,189,248,0.7); } }',
-            '.jodu-sum-row { display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px; }',
-            '.jodu-sum-card { flex:1;min-width:160px;padding:18px 16px;text-align:center;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.12);transition:transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease; }',
-            '.jodu-sum-card:hover { transform:translateY(-2px);border-color:rgba(255,255,255,0.2); }',
-            '.jodu-sum-icon { font-size:1.5em;margin-bottom:4px; }',
-            '.jodu-sum-val { font-size:1.6em;font-weight:800;margin:4px 0 2px;letter-spacing:-0.02em;font-variant-numeric:tabular-nums; }',
-            '.jodu-sum-sub { font-size:0.78em;color:#94a3b8;font-weight:500;margin-bottom:6px; }',
-            '.jodu-sum-lbl { font-size:0.7em;letter-spacing:0.1em;text-transform:uppercase;color:#64748b;font-weight:700; }',
-            '.jodu-grid-2col { display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:16px;margin-bottom:16px; }',
-            '.jodu-grid-auto { display:grid;grid-template-columns:repeat(auto-fit, minmax(380px, 1fr));gap:16px;margin-bottom:16px; }',
+            '.jodu-wrapper { background:#080d1a; color:#e2e8f0; border-radius:8px; padding:18px 20px; border:1px solid #1e293b; box-sizing:border-box; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }',
+            '.jodu-top-bar { display:flex; justify-content:space-between; align-items:center; padding-bottom:14px; border-bottom:1px solid #1e293b; margin-bottom:18px; flex-wrap:wrap; gap:12px; }',
+            '.jodu-title-block h2 { margin:0; font-size:1.25em; font-weight:800; letter-spacing:0.04em; color:#f8fafc; display:inline-block; }',
+            '.jodu-live-badge { display:inline-flex; align-items:center; gap:5px; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:0.68em; font-weight:700; letter-spacing:0.08em; background:#0f1f1a; color:#34d399; border:1px solid #065f46; padding:2px 7px; border-radius:4px; }',
+            '.jodu-subtitle { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:0.7em; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; margin-top:3px; font-weight:600; }',
+            '.jodu-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }',
+            '.jodu-top-btn { font-size:0.82em; padding:6px 12px; border-radius:4px; border:1px solid #1e293b; background:#0f172a; transition:all 0.15s ease; font-weight:600; color:#cbd5e1; cursor:pointer; display:inline-flex; align-items:center; }',
+            '.jodu-top-btn:hover { background:#1e293b; border-color:#334155; color:#f8fafc; }',
+            '.jodu-pulse-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#10b981; animation:jodu-pulse 2s infinite; vertical-align:middle; }',
+            '@keyframes jodu-pulse { 0% { box-shadow:0 0 0 0 rgba(16,185,129,0.6); } 70% { box-shadow:0 0 0 5px rgba(16,185,129,0); } 100% { box-shadow:0 0 0 0 rgba(16,185,129,0); } }',
+            '.jodu-sig-bar { transition:background 0.2s ease; }',
+            '.jodu-sum-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; }',
+            '.jodu-sum-card { flex:1; min-width:150px; padding:14px 12px; text-align:center; background:#0d1522; border:1px solid #1e293b; border-radius:6px; transition:border-color 0.15s ease; }',
+            '.jodu-sum-card:hover { border-color:#334155; }',
+            '.jodu-sum-icon { margin-bottom:4px; line-height:1; display:flex; justify-content:center; }',
+            '.jodu-sum-val { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:1.45em; font-weight:700; margin:4px 0 2px; letter-spacing:-0.01em; font-variant-numeric:tabular-nums; }',
+            '.jodu-sum-sub { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:0.72em; color:#64748b; font-weight:500; margin-bottom:4px; }',
+            '.jodu-sum-lbl { font-size:0.68em; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; font-weight:700; }',
+            '.jodu-grid-2col { display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:14px; margin-bottom:14px; }',
+            '.jodu-grid-auto { display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:14px; margin-bottom:14px; }',
             '@media (max-width:768px) { .jodu-grid-auto { grid-template-columns:1fr; } }',
-            '.jodu-grid-3col { display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:16px;margin-bottom:16px; }',
+            '.jodu-grid-3col { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px; margin-bottom:14px; }',
             '@media (max-width:640px) { ' +
-                '.jodu-wrapper { padding:14px 12px; border-radius:12px; } ' +
-                '.jodu-top-bar { flex-direction:column; align-items:stretch; gap:12px; } ' +
+                '.jodu-wrapper { padding:12px 10px; border-radius:6px; } ' +
+                '.jodu-top-bar { flex-direction:column; align-items:stretch; gap:10px; } ' +
                 '.jodu-title-block { text-align:center; } ' +
-                '.jodu-actions { display:grid; grid-template-columns:repeat(2, 1fr); width:100%; gap:6px; } ' +
+                '.jodu-actions { display:grid; grid-template-columns:repeat(2, 1fr); width:100%; gap:5px; } ' +
                 '.jodu-top-btn { width:100%; text-align:center; justify-content:center; } ' +
-                '.jodu-sum-row { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; } ' +
-                '.jodu-sum-card { min-width:unset; padding:14px 10px; } ' +
-                '.jodu-sum-val { font-size:1.35em; } ' +
+                '.jodu-sum-row { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; } ' +
+                '.jodu-sum-card { min-width:unset; padding:12px 8px; } ' +
+                '.jodu-sum-val { font-size:1.25em; } ' +
                 '.jodu-grid-2col, .jodu-grid-auto, .jodu-grid-3col { grid-template-columns:1fr; } ' +
             '}',
-            '.jodu-thermal-grid { display:grid;grid-template-columns:repeat(2, 1fr);gap:18px; }',
-            '@media (max-width:768px) { .jodu-thermal-grid { grid-template-columns:1fr;gap:12px; } }',
-            '.jodu-thermal-col { background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 14px; }',
-            '.jodu-card { background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.12);transition:transform 0.2s ease; }',
-            '.jodu-card:hover { border-color:rgba(255,255,255,0.14); }',
-            '.jodu-card-hdr { display:flex;align-items:center;gap:8px;padding:12px 16px;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.06); }',
-            '.jodu-card-icon { font-size:1.15em; }',
-            '.jodu-card-title { font-size:0.95em;font-weight:700;color:#f8fafc;letter-spacing:0.02em; }',
-            '.jodu-card-body { padding:16px; }',
-            '.jodu-panel-hide-btn { background:transparent;border:none;color:#64748b;font-size:0.95em;padding:2px 6px;border-radius:4px;cursor:pointer;line-height:1;transition:all 0.2s ease; }',
-            '.jodu-panel-hide-btn:hover { background:rgba(239,68,68,0.15);color:#f87171; }',
-            '.jodu-summary-wrapper { position:relative;margin-bottom:20px; }',
-            '.jodu-summary-hide-btn { position:absolute;top:-10px;right:0;z-index:2;background:rgba(15,23,42,0.85);border:1px solid rgba(255,255,255,0.12);color:#64748b;font-size:0.8em;padding:2px 7px;border-radius:6px;cursor:pointer;transition:all 0.2s ease; }',
-            '.jodu-summary-hide-btn:hover { background:rgba(239,68,68,0.2);color:#f87171;border-color:rgba(239,68,68,0.4); }',
-            '.jodu-empty-widgets-box { text-align:center;padding:60px 20px;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.1);border-radius:16px;margin:20px 0; }',
-            '.jodu-widget-item { display:block;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px 14px;cursor:pointer;transition:background 0.2s ease, border-color 0.2s ease; }',
-            '.jodu-widget-item:hover { background:rgba(255,255,255,0.05);border-color:rgba(56,189,248,0.3); }',
-            '.jodu-table { width:100%;border-collapse:collapse;font-size:0.88em; }',
-            '.jodu-tr { border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.15s ease; }',
-            '.jodu-tr:hover { background:rgba(255,255,255,0.02); }',
+            '.jodu-thermal-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; }',
+            '@media (max-width:768px) { .jodu-thermal-grid { grid-template-columns:1fr; gap:10px; } }',
+            '.jodu-thermal-col { background:#0a0e17; border:1px solid #1e293b; border-radius:6px; padding:10px 12px; }',
+            '.jodu-card { background:#0d1522; border:1px solid #1e293b; border-radius:6px; overflow:hidden; }',
+            '.jodu-card:hover { border-color:#334155; }',
+            '.jodu-card-hdr { display:flex; align-items:center; gap:8px; padding:10px 14px; background:#111a28; border-bottom:1px solid #1e293b; }',
+            '.jodu-card-icon { line-height:1; display:inline-flex; align-items:center; }',
+            '.jodu-card-title { font-size:0.82em; font-weight:700; color:#cbd5e1; letter-spacing:0.05em; text-transform:uppercase; }',
+            '.jodu-card-body { padding:14px; }',
+            '.jodu-panel-hide-btn { background:transparent; border:none; color:#64748b; font-size:0.85em; padding:2px 5px; border-radius:4px; cursor:pointer; line-height:1; }',
+            '.jodu-panel-hide-btn:hover { background:rgba(239,68,68,0.15); color:#f87171; }',
+            '.jodu-summary-wrapper { position:relative; margin-bottom:18px; }',
+            '.jodu-summary-hide-btn { position:absolute; top:-10px; right:0; z-index:2; background:#0f172a; border:1px solid #1e293b; color:#64748b; font-size:0.75em; padding:2px 6px; border-radius:4px; cursor:pointer; }',
+            '.jodu-summary-hide-btn:hover { background:rgba(239,68,68,0.15); color:#f87171; border-color:#ef4444; }',
+            '.jodu-empty-widgets-box { text-align:center; padding:50px 20px; background:#0d1522; border:1px dashed #1e293b; border-radius:8px; margin:16px 0; }',
+            '.jodu-widget-item { display:block; background:#0a0e17; border:1px solid #1e293b; border-radius:6px; padding:10px 12px; cursor:pointer; transition:border-color 0.15s ease; }',
+            '.jodu-widget-item:hover { border-color:#38bdf8; background:#111a28; }',
+            '.jodu-table { width:100%; border-collapse:collapse; font-size:0.84em; }',
+            '.jodu-tr { border-bottom:1px solid #151e2e; transition:background 0.1s ease; }',
+            '.jodu-tr:hover { background:#111a28; }',
             '.jodu-tr:last-child { border-bottom:none; }',
-            '.jodu-th-tr { border-bottom:1px solid rgba(255,255,255,0.1); }',
-            '.jodu-th { text-align:left;padding:6px 8px;font-size:0.78em;color:#64748b;font-weight:700;letter-spacing:0.04em;text-transform:uppercase; }',
-            '.jodu-td-lbl { padding:8px 8px;color:#94a3b8; }',
-            '.jodu-td-val { padding:8px 8px;text-align:right;color:#f8fafc;font-variant-numeric:tabular-nums; }',
+            '.jodu-th-tr { border-bottom:1px solid #1e293b; }',
+            '.jodu-th { text-align:left; padding:6px 8px; font-size:0.7em; color:#64748b; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; }',
+            '.jodu-td-lbl { padding:7px 8px; color:#94a3b8; }',
+            '.jodu-td-val { padding:7px 8px; text-align:right; color:#f8fafc; font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-variant-numeric:tabular-nums; }',
             '.jodu-td-val.jodu-has-color { font-weight:600; }',
-            '.jodu-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle; }',
-            '.jodu-badge { font-size:0.75em;padding:3px 8px;border-radius:6px;font-weight:600;display:inline-block; }',
-            '.jodu-btn-sm { font-size:0.78em;padding:4px 10px;border-radius:6px;font-weight:600; }',
-            '.jodu-gauge-center { position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center; }',
-            '.jodu-gauge-val { font-size:1.65em;font-weight:800;line-height:1;letter-spacing:-0.02em; }',
-            '.jodu-gauge-sub { font-size:0.75em;color:#64748b;margin-top:4px;font-weight:600; }',
-            '.jodu-stat-row { display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.86em; }',
+            '.jodu-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:6px; vertical-align:middle; }',
+            '.jodu-badge { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:0.72em; padding:2px 7px; border-radius:4px; font-weight:600; display:inline-block; letter-spacing:0.03em; }',
+            '.jodu-btn-sm { font-size:0.75em; padding:4px 9px; border-radius:4px; font-weight:600; background:#1e293b; border:1px solid #334155; color:#f8fafc; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }',
+            '.jodu-btn-sm:hover { background:#334155; }',
+            '.jodu-gauge-center { position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }',
+            '.jodu-gauge-val { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:1.55em; font-weight:800; line-height:1; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; }',
+            '.jodu-gauge-sub { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:0.72em; color:#64748b; margin-top:3px; font-weight:600; }',
+            '.jodu-stat-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #151e2e; font-size:0.84em; }',
             '.jodu-stat-lbl { color:#94a3b8; }',
-            '.jodu-stat-val { font-weight:600;color:#f8fafc; }',
-            '.jodu-subheading { text-align:center;color:#64748b;font-size:0.72em;letter-spacing:0.1em;text-transform:uppercase;margin:14px 0 6px;font-weight:700; }',
-            '.jodu-bar-track { background:rgba(255,255,255,0.08);border-radius:6px;height:8px;overflow:hidden; }',
-            '.jodu-bar-fill { height:100%;border-radius:6px;transition:width 0.35s ease; }',
-            '.jodu-alert-box { margin-top:10px;padding:8px 12px;border-radius:8px;font-size:0.82em;line-height:1.4;font-weight:500; }',
-            '.jodu-alert-banner { margin-bottom:16px;padding:12px;border-radius:10px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;font-weight:600;text-align:center; }',
-            '.jodu-paused-box { text-align:center;padding:55px 20px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:14px; }',
-            '.jodu-idle-panel { padding:24px 0;text-align:center;color:#888; }',
-            '.jodu-loading-box { text-align:center;padding:70px 20px; }',
-            '.jodu-spinner { width:38px;height:38px;margin:0 auto;border:3px solid rgba(255,255,255,0.1);border-top-color:#38bdf8;border-radius:50%;animation:jodu-spin 0.8s linear infinite; }',
+            '.jodu-stat-val { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-variant-numeric:tabular-nums; font-weight:600; color:#f8fafc; }',
+            '.jodu-subheading { text-align:center; color:#64748b; font-size:0.7em; letter-spacing:0.08em; text-transform:uppercase; margin:12px 0 6px; font-weight:700; }',
+            '.jodu-bar-track { background:#1e293b; border-radius:3px; height:6px; overflow:hidden; }',
+            '.jodu-bar-fill { height:100%; border-radius:3px; transition:width 0.3s ease; }',
+            '.jodu-alert-box { margin-top:10px; padding:8px 12px; border-radius:4px; font-size:0.8em; line-height:1.4; font-weight:500; }',
+            '.jodu-alert-banner { margin-bottom:14px; padding:10px 14px; border-radius:6px; background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.3); color:#60a5fa; font-weight:600; text-align:center; font-size:0.85em; }',
+            '.jodu-paused-box { text-align:center; padding:50px 20px; background:#0d1522; border:1px solid #1e293b; border-radius:6px; }',
+            '.jodu-idle-panel { padding:24px 0; text-align:center; color:#888; }',
+            '.jodu-loading-box { text-align:center; padding:60px 20px; }',
+            '.jodu-spinner { width:32px; height:32px; margin:0 auto; border:2px solid #1e293b; border-top-color:#38bdf8; border-radius:50%; animation:jodu-spin 0.8s linear infinite; }',
             '@keyframes jodu-spin { to { transform:rotate(360deg); } }',
-            '.jodu-modal-sec { background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:12px 14px; margin-bottom:12px; }',
-            '.jodu-modal-sec-title { font-size:0.78em; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px; display:flex; align-items:center; }',
+            '.jodu-modal-sec { background:#0a0e17; border:1px solid #1e293b; border-radius:6px; padding:12px 14px; margin-bottom:12px; }',
+            '.jodu-modal-sec-title { font-size:0.75em; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px; display:flex; align-items:center; gap:6px; }',
             '.jodu-modal-field { margin-bottom:10px; }',
             '.jodu-modal-field:last-child { margin-bottom:0; }',
-            '.jodu-modal-label { display:block; margin-bottom:4px; color:#94a3b8; font-size:0.82em; font-weight:600; }',
-            '.jodu-aiming-modal { font-family:inherit;color:#f8fafc;width:100%;box-sizing:border-box; }',
-            '.jodu-aiming-top { display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:16px; }',
-            '.jodu-aiming-grid { display:grid;grid-template-columns:repeat(2, 1fr);gap:16px;margin-bottom:16px; }',
-            '@media (max-width:680px) { .jodu-aiming-grid { grid-template-columns:1fr;gap:12px; } }',
-            '.jodu-aiming-card { background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.09);border-radius:14px;padding:16px;text-align:center;position:relative;overflow:hidden; }',
-            '.jodu-aiming-title { font-size:0.72em;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;font-weight:700;margin-bottom:6px; }',
-            '.jodu-aiming-jumbo { font-size:3.2em;font-weight:900;line-height:1.1;letter-spacing:-0.03em;margin:4px 0;transition:color 0.3s ease; }',
-            '.jodu-aiming-unit { font-size:0.4em;font-weight:600;color:#94a3b8;margin-left:4px; }',
-            '.jodu-aiming-meter-track { position:relative;height:12px;background:rgba(255,255,255,0.08);border-radius:6px;margin:14px 0 10px;overflow:visible; }',
-            '.jodu-aiming-meter-fill { height:100%;border-radius:6px;transition:width 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease; }',
-            '.jodu-aiming-peak-pointer { position:absolute;top:-4px;width:4px;height:20px;background:#facc15;border-radius:2px;box-shadow:0 0 8px #facc15;transform:translateX(-50%);transition:left 0.4s cubic-bezier(0.4, 0, 0.2, 1); }',
-            '.jodu-aiming-context { background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:12px 16px;margin-bottom:14px; }',
-            '.jodu-aiming-guide { background:rgba(56,189,248,0.04);border:1px dashed rgba(56,189,248,0.2);border-radius:10px;padding:10px 14px;font-size:0.82em;color:#94a3b8;line-height:1.5;margin-bottom:16px; }',
-            '.jodu-aim-btn { padding:6px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);font-weight:600;font-size:0.82em;cursor:pointer;transition:all 0.2s ease; }',
-            '.jodu-aim-btn:hover { filter:brightness(1.15);transform:translateY(-1px); }',
-            '.jodu-modal-hint { font-size:0.74em; color:#64748b; margin-top:3px; }'
+            '.jodu-modal-label { display:block; margin-bottom:4px; color:#94a3b8; font-size:0.8em; font-weight:600; }',
+            '.jodu-aiming-modal { font-family:inherit; color:#f8fafc; width:100%; box-sizing:border-box; }',
+            '.jodu-aiming-top { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; padding-bottom:12px; border-bottom:1px solid #1e293b; margin-bottom:14px; }',
+            '.jodu-aiming-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; margin-bottom:14px; }',
+            '@media (max-width:680px) { .jodu-aiming-grid { grid-template-columns:1fr; gap:10px; } }',
+            '.jodu-aiming-card { background:#0d1522; border:1px solid #1e293b; border-radius:6px; padding:14px; text-align:center; position:relative; }',
+            '.jodu-aiming-title { font-size:0.7em; text-transform:uppercase; letter-spacing:0.08em; color:#94a3b8; font-weight:700; margin-bottom:4px; }',
+            '.jodu-aiming-jumbo { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:3em; font-weight:800; line-height:1.1; letter-spacing:-0.03em; margin:4px 0; font-variant-numeric:tabular-nums; }',
+            '.jodu-aiming-unit { font-size:0.4em; font-weight:600; color:#94a3b8; margin-left:4px; }',
+            '.jodu-aiming-meter-track { position:relative; height:10px; background:#1e293b; border-radius:2px; margin:12px 0 8px; overflow:visible; }',
+            '.jodu-aiming-meter-fill { height:100%; border-radius:2px; transition:width 0.3s ease; }',
+            '.jodu-aiming-peak-pointer { position:absolute; top:-3px; width:3px; height:16px; background:#facc15; border-radius:1px; transform:translateX(-50%); }',
+            '.jodu-aiming-context { background:#0a0e17; border:1px solid #1e293b; border-radius:6px; padding:10px 14px; margin-bottom:12px; }',
+            '.jodu-aiming-guide { background:#0d1522; border:1px solid #1e293b; border-radius:6px; padding:10px 14px; font-size:0.8em; color:#94a3b8; line-height:1.4; margin-bottom:14px; }',
+            '.jodu-aim-btn { padding:5px 12px; border-radius:4px; border:1px solid #334155; background:#1e293b; color:#cbd5e1; font-weight:600; font-size:0.8em; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }',
+            '.jodu-aim-btn:hover { background:#334155; color:#f8fafc; }',
+            '.jodu-modal-hint { font-size:0.72em; color:#64748b; margin-top:3px; }'
         ]);
 
         var topBar = E('div', { 'class': 'jodu-top-bar' }, [
             E('div', { 'class': 'jodu-title-block' }, [
-                E('h2', {}, 'JODU5164x Status Dashboard'),
-                E('div', { 'class': 'jodu-subtitle' }, 'Real-Time ODU Monitoring & Telemetry')
+                E('div', { 'style': 'display:flex;align-items:center;gap:10px;' }, [
+                    E('h2', {}, 'SERCOMM JODU5164X'),
+                    E('span', { 'class': 'jodu-live-badge' }, [
+                        E('span', { 'class': 'jodu-pulse-dot' }),
+                        '5G-NR TELEMETRY'
+                    ])
+                ]),
+                E('div', { 'class': 'jodu-subtitle' }, 'OUTDOOR CELLULAR UNIT • REAL-TIME RF MONITOR')
             ]),
             E('div', { 'class': 'jodu-actions' }, [
                 toggleBtn,
