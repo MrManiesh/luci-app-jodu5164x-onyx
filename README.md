@@ -5,7 +5,7 @@
 ### Real-Time 5G Dashboard for Sercomm JODU5164x ODUs (JODU51641 / JODU51642) on OpenWrt
 
 [![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-onyx/releases)
-[![OpenWrt](https://img.shields.io/badge/OpenWrt-23.05%20%7C%2024.10-success.svg)](https://openwrt.org)
+[![OpenWrt](https://img.shields.io/badge/OpenWrt-24.10%2B%20(apk)-success.svg)](https://openwrt.org)
 [![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-Compatible-success.svg)](https://immortalwrt.org)
 [![Original Author](https://img.shields.io/badge/Original%20Author-anishthevictorious-181717?style=flat&logo=github&logoColor=white)](https://github.com/anishthevictorious)
 [![Current Author](https://img.shields.io/badge/Current%20Author-@Zeetron-2CA5E0?logo=telegram&logoColor=white)](https://t.me/Zeetron)
@@ -105,8 +105,8 @@ Originally created and conceptualized by **[Anish (@anishthevictorious)](https:/
 | Component | Requirement |
 |:---|:---|
 | **Supported Hardware** | Sercomm 5G ODU (JODU51641, JODU51642) |
-| **Router OS** | OpenWrt 23.05, OpenWrt 24.10, ImmortalWrt (all CPU architectures) |
-| **Package Format** | Compatible with both APK (`apk add`) and IPK (`opkg`) |
+| **Router OS** | OpenWrt 24.10+, ImmortalWrt (all CPU architectures) |
+| **Package Format** | APK (`apk add`) |
 | **Dependencies** | `luci-base`, `curl`, `openssl-util`, `telnet-bsd`, `luci-compat` |
 
 ---
@@ -129,12 +129,6 @@ scp luci-app-jodu5164x-status-3.1.0-r1.apk root@192.168.1.1:/tmp/
 apk add --allow-untrusted /tmp/luci-app-jodu5164x-status-*.apk
 ```
 
-### Option 3: IPK Package (OpenWrt 23.05 & older / opkg)
-For legacy OpenWrt versions using `opkg`:
-```sh
-cd /tmp && uclient-fetch -O luci-app-jodu5164x-status.ipk https://github.com/MrManiesh/luci-app-jodu5164x-onyx/releases/latest/download/luci-app-jodu5164x-status.ipk && opkg install ./luci-app-jodu5164x-status.ipk
-```
-*(Or upload the `.ipk` via SCP to `/tmp/` and run `opkg install /tmp/luci-app-jodu5164x-status.ipk`)*
 
 ### Service Restart (Recommended):
 ```sh
