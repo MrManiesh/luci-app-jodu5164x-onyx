@@ -4,7 +4,7 @@
 
 ### Real-Time 5G Dashboard for Sercomm JODU5164x ODUs (JODU51641 / JODU51642) on OpenWrt
 
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-status/releases)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-onyx/releases)
 [![OpenWrt](https://img.shields.io/badge/OpenWrt-23.05%20%7C%2024.10-success.svg)](https://openwrt.org)
 [![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-Compatible-success.svg)](https://immortalwrt.org)
 [![Original Author](https://img.shields.io/badge/Original%20Author-anishthevictorious-181717?style=flat&logo=github&logoColor=white)](https://github.com/anishthevictorious)
@@ -113,17 +113,34 @@ Originally created and conceptualized by **[Anish (@anishthevictorious)](https:/
 
 ## 🚀 Installation
 
-### Option 1: APK Package (OpenWrt 24.10+ / Alpine-based)
-Install directly from your router's terminal:
+### Option 1: Direct 1-Line Quick Install (OpenWrt 24.10+ / APK-based)
+Run the following command directly on your router via SSH or Terminal:
 ```sh
-wget --no-check-certificate -O /tmp/luci-app-jodu5164x-status.apk https://github.com/MrManiesh/luci-app-jodu5164x-status/releases/latest/download/luci-app-jodu5164x-status.apk
-apk add --allow-untrusted /tmp/luci-app-jodu5164x-status.apk
+cd /tmp && uclient-fetch -O luci-app-jodu5164x-status-3.0.0-r1.apk https://github.com/MrManiesh/luci-app-jodu5164x-onyx/releases/download/v3.0.0/luci-app-jodu5164x-status-3.0.0-r1.apk && apk add --allow-untrusted ./luci-app-jodu5164x-status-*.apk
 ```
 
-### Option 2: IPK Package (OpenWrt 23.05 & older / opkg)
+### Option 2: Manual Installation (Upload via SCP)
+If your router cannot download directly from GitHub or you prefer manual transfer:
 ```sh
-wget --no-check-certificate -O /tmp/luci-app-jodu5164x-status.ipk https://github.com/MrManiesh/luci-app-jodu5164x-status/releases/latest/download/luci-app-jodu5164x-status.ipk
-opkg install /tmp/luci-app-jodu5164x-status.ipk
+# 1. Download luci-app-jodu5164x-status-3.0.0-r1.apk on your computer and copy to router:
+scp luci-app-jodu5164x-status-3.0.0-r1.apk root@192.168.1.1:/tmp/
+
+# 2. Connect via SSH and install using apk:
+apk add --allow-untrusted /tmp/luci-app-jodu5164x-status-*.apk
+```
+
+### Option 3: IPK Package (OpenWrt 23.05 & older / opkg)
+For legacy OpenWrt versions using `opkg`:
+```sh
+cd /tmp && uclient-fetch -O luci-app-jodu5164x-status.ipk https://github.com/MrManiesh/luci-app-jodu5164x-onyx/releases/latest/download/luci-app-jodu5164x-status.ipk && opkg install ./luci-app-jodu5164x-status.ipk
+```
+*(Or upload the `.ipk` via SCP to `/tmp/` and run `opkg install /tmp/luci-app-jodu5164x-status.ipk`)*
+
+### Service Restart (Recommended):
+```sh
+/etc/init.d/rpcd restart
+/etc/init.d/uhttpd restart
+/etc/init.d/jodu5164x-updater restart
 ```
 
 After installation, refresh your LuCI browser page and navigate to:  
