@@ -21,6 +21,7 @@ var COLOR_BLUE = '#3b82f6';     // Blue 500
 var COLOR_PURPLE = '#8b5cf6';   // Purple 500
 var COLOR_CYAN = '#06b6d4';     // Cyan 500
 
+var cdtExpanded = false;
 var rebootState = { inProgress: false, sawOffline: false };
 var aimingSession = {
     active: false,
@@ -277,16 +278,21 @@ function renderSignalBars(barsCount, color) {
     for (var i = 0; i < 4; i++) {
         var active = (i < count);
         bars.push(E('span', {
+            'class': 'jodu-sig-bar' + (active ? ' jodu-sig-bar-active' : ''),
             'style': 'display:inline-block;width:6px;height:' + heights[i] + 'px;border-radius:2px;background:' +
                 (active ? col : 'rgba(255,255,255,0.18)') + ';' +
                 (active ? 'box-shadow:0 0 6px ' + col + '60;' : '')
         }));
     }
 
-    return E('div', { 'style': 'display:inline-flex;align-items:flex-end;gap:3.5px;height:22px;margin-right:6px;' }, bars);
+    return E('div', {
+        'class': 'jodu-signal-meter' + (count === 4 ? ' jodu-signal-meter-max' : ''),
+        'style': 'display:inline-flex;align-items:flex-end;gap:3.5px;height:22px;margin-right:6px;'
+    }, bars);
 }
 
-function summaryCard(label, value, color, sublabel, icon, visualElem) {
+function summaryCard(label, value, color, sublabel, icon, visualElem, accentColor) {
+    var acc = accentColor || color || '#38bdf8';
     var children = [];
     if (icon) {
         children.push(E('div', { 'class': 'jodu-sum-icon' }, icon));
@@ -300,12 +306,18 @@ function summaryCard(label, value, color, sublabel, icon, visualElem) {
     } else {
         valContent = value;
     }
-    children.push(E('div', { 'class': 'jodu-sum-val', 'style': 'color:' + (color || '#f8fafc') }, valContent));
+    children.push(E('div', {
+        'class': 'jodu-sum-val',
+        'style': 'color:' + (color || '#f8fafc') + ';text-shadow:0 0 16px ' + (color || '#f8fafc') + '33;'
+    }, valContent));
     if (sublabel) {
         children.push(E('div', { 'class': 'jodu-sum-sub' }, sublabel));
     }
     children.push(E('div', { 'class': 'jodu-sum-lbl' }, label));
-    return E('div', { 'class': 'jodu-sum-card' }, children);
+    return E('div', {
+        'class': 'jodu-sum-card',
+        'style': 'border-top:3px solid ' + acc + ';box-shadow:0 4px 20px rgba(0,0,0,0.18), 0 0 16px -4px ' + acc + '35;'
+    }, children);
 }
 
 function summaryRow(data, online) {
@@ -325,10 +337,10 @@ function summaryRow(data, online) {
     var cards;
     if (!online) {
         cards = [
-            summaryCard('NETWORK', 'OFFLINE', COLOR_POOR, 'ODU Unreachable', '📡'),
-            summaryCard('SIGNAL STRENGTH', '--', COLOR_NEUTRAL, 'No connection', '📡'),
-            summaryCard('RADIO PURITY', '--', COLOR_NEUTRAL, 'Telemetry paused', '⚡'),
-            summaryCard('SIGNAL LEVEL', '--', COLOR_NEUTRAL, 'No connection', '📶', renderSignalBars(0, COLOR_NEUTRAL))
+            summaryCard('NETWORK', 'OFFLINE', COLOR_POOR, 'ODU Unreachable', '📡', null, COLOR_POOR),
+            summaryCard('SIGNAL STRENGTH', '--', COLOR_NEUTRAL, 'No connection', '📡', null, COLOR_NEUTRAL),
+            summaryCard('RADIO PURITY', '--', COLOR_NEUTRAL, 'Telemetry paused', '⚡', null, COLOR_NEUTRAL),
+            summaryCard('SIGNAL LEVEL', '--', COLOR_NEUTRAL, 'No connection', '📶', renderSignalBars(0, COLOR_NEUTRAL), COLOR_NEUTRAL)
         ];
     } else {
         var qualityPct = signalQualityPercent(data.rsrp);
@@ -345,12 +357,15 @@ function summaryRow(data, online) {
         var barsQuality = hasBars ? (barsVal === 4 ? 'Excellent' : (barsVal === 3 ? 'Very Good' : (barsVal === 2 ? 'Good' : (barsVal === 1 ? 'Poor' : 'No Signal')))) : 'Sampling...';
         var barsSub = hasBars ? (barsVal + '/4 Bars · ' + barsQuality) : 'Cellular Level';
 
+        var rsrpColor = qualityColor('rsrp', data.rsrp);
+        var sinrColor = qualityColor('sinr', data.sinr);
+
         cards = [
-            noSim ? summaryCard('NETWORK', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM', '📱') :
-                summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, '📡'),
-            summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', qualityColor('rsrp', data.rsrp), sigSub, '📡'),
-            summaryCard('RADIO PURITY', sinrVal, qualityColor('sinr', data.sinr), puritySub, '⚡'),
-            summaryCard('SIGNAL LEVEL', hasBars ? (barsVal + ' / 4') : 'NA', barsColor, barsSub, '📶', renderSignalBars(barsVal, barsColor))
+            noSim ? summaryCard('NETWORK', 'No SIM', COLOR_POOR, 'Please insert pSIM or eSIM', '📱', null, COLOR_POOR) :
+                summaryCard('NETWORK', 'JioTrue 5G', '#38bdf8', netSub, '📡', null, '#38bdf8'),
+            summaryCard('SIGNAL STRENGTH', (data.rsrp && data.rsrp !== 'NA' && data.rsrp !== '--') ? data.rsrp + ' dBm' : 'NA', rsrpColor, sigSub, '📡', null, rsrpColor),
+            summaryCard('RADIO PURITY', sinrVal, sinrColor, puritySub, '⚡', null, sinrColor),
+            summaryCard('SIGNAL LEVEL', hasBars ? (barsVal + ' / 4') : 'NA', barsColor, barsSub, '📶', renderSignalBars(barsVal, barsColor), barsColor)
         ];
     }
 
@@ -716,10 +731,15 @@ function nearbyCellsSection(data, widgetId) {
             E('td', { 'class': 'jodu-td-val', 'style': 'color:' + color + ';font-weight:600;' }, c.rsrp + (c.rsrp !== '--' && c.rsrp !== 'NA' ? ' dBm' : '')),
             E('td', { 'class': 'jodu-td-val', 'style': 'color:#94a3b8;' }, c.rsrq + (c.rsrq !== '--' && c.rsrq !== 'NA' ? ' dB' : '')),
             E('td', { 'class': 'jodu-td-val', 'style': 'text-align:right' }, [
-                E('button', {
-                    'class': 'btn jodu-btn-sm',
-                    'click': (function (pci, arfcn) { return function () { lockCell(pci, arfcn); }; })(c.pci, c.arfcn)
-                }, 'Lock')
+                c.isServing ?
+                    E('span', {
+                        'class': 'jodu-badge',
+                        'style': 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);font-size:0.75em;padding:4px 8px;font-weight:600;'
+                    }, '🟢 Active') :
+                    E('button', {
+                        'class': 'btn jodu-btn-sm',
+                        'click': (function (pci, arfcn) { return function () { lockCell(pci, arfcn); }; })(c.pci, c.arfcn)
+                    }, 'Lock')
             ])
         ]);
     });
@@ -809,20 +829,38 @@ function ethSection(data, widgetId) {
     if (data.cdt && data.cdt.pairs && data.cdt.pairs.length) {
         var allOk = data.cdt.pairs.every(function (p) { return String(p.status).toLowerCase() === 'normal'; });
         var avgLen = data.cdt.pairs[0] ? data.cdt.pairs[0].length : null;
+        var lenStr = avgLen ? (' · ~' + avgLen + ' m') : '';
         var cdtBadge = E('span', {
             'class': 'jodu-badge',
             'style': allOk ? 'background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3);font-size:0.72em;' : 'background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);font-size:0.72em;'
-        }, allOk ? '🟢 All 4 Pairs Normal' : '⚠️ Cable Fault Detected');
+        }, allOk ? ('🟢 Pairs A-D: Normal (Pass)' + lenStr) : '⚠️ Cable Fault Detected');
+
+        var toggleBtn = E('button', {
+            'class': 'btn jodu-btn-sm',
+            'style': 'background:rgba(255,255,255,0.06);color:#cbd5e1;border:1px solid rgba(255,255,255,0.1);font-size:0.74em;cursor:pointer;padding:3px 8px;',
+            'click': function (ev) {
+                ev.preventDefault();
+                cdtExpanded = !cdtExpanded;
+                var detailsNode = ev.target.closest('.jodu-cdt-section').querySelector('.jodu-cdt-details');
+                if (detailsNode) {
+                    detailsNode.style.display = cdtExpanded ? 'block' : 'none';
+                }
+                ev.target.textContent = cdtExpanded ? '▴ Hide Details' : '▾ Details & Pinout';
+            }
+        }, cdtExpanded ? '▴ Hide Details' : '▾ Details & Pinout');
 
         var cdtHeader = E('div', {
             'style': 'margin:14px 0 8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;'
         }, [
-            E('span', { 'style': 'font-size:0.82em;font-weight:700;letter-spacing:0.04em;color:#cbd5e1;' }, 'CABLE HEALTH & DIAGNOSTICS (CDT)'),
-            cdtBadge
+            E('div', { 'style': 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;' }, [
+                E('span', { 'style': 'font-size:0.82em;font-weight:700;letter-spacing:0.04em;color:#cbd5e1;' }, 'CABLE DIAGNOSTICS (CDT)'),
+                cdtBadge
+            ]),
+            toggleBtn
         ]);
 
         var cdtGrid = E('div', {
-            'style': 'display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;margin-bottom:6px;'
+            'style': 'display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;margin-bottom:8px;margin-top:8px;'
         }, data.cdt.pairs.map(cdtPairBadge));
 
         var cdtNote = E('div', {
@@ -839,7 +877,13 @@ function ethSection(data, widgetId) {
             ])
         ]);
 
-        children.push(cdtHeader, cdtGrid, cdtNote);
+        var cdtDetails = E('div', {
+            'class': 'jodu-cdt-details',
+            'style': 'display:' + (cdtExpanded ? 'block' : 'none') + ';'
+        }, [cdtGrid, cdtNote]);
+
+        var cdtSection = E('div', { 'class': 'jodu-cdt-section' }, [cdtHeader, cdtDetails]);
+        children.push(cdtSection);
     }
 
     var speedSuggestion = ethSpeedSuggestion(data.eth_speed);
@@ -2073,19 +2117,32 @@ return view.extend({
             '.jodu-top-btn:hover { background:rgba(255,255,255,0.12);transform:translateY(-1px); }',
             '.jodu-pulse-dot { display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 rgba(16,185,129,0.6);animation:jodu-pulse 2s infinite;margin-right:6px;vertical-align:middle; }',
             '@keyframes jodu-pulse { 0% { box-shadow:0 0 0 0 rgba(16,185,129,0.7); } 70% { box-shadow:0 0 0 8px rgba(16,185,129,0); } 100% { box-shadow:0 0 0 0 rgba(16,185,129,0); } }',
+            '.jodu-sig-bar { transition: background 0.35s ease, box-shadow 0.35s ease; }',
+            '.jodu-signal-meter-max { filter: drop-shadow(0 0 5px rgba(16,185,129,0.5)); }',
             '.jodu-discover-banner { animation:jodu-discover-glow 3.5s infinite ease-in-out; }',
             '@keyframes jodu-discover-glow { 0%, 100% { box-shadow:0 0 14px rgba(139,92,246,0.22); border-color:rgba(139,92,246,0.45); } 50% { box-shadow:0 0 26px rgba(56,189,248,0.38); border-color:rgba(56,189,248,0.7); } }',
             '.jodu-sum-row { display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px; }',
-            '.jodu-sum-card { flex:1;min-width:160px;padding:18px 16px;text-align:center;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.12);transition:transform 0.25s ease, border-color 0.25s ease; }',
-            '.jodu-sum-card:hover { transform:translateY(-2px);border-color:rgba(255,255,255,0.16); }',
+            '.jodu-sum-card { flex:1;min-width:160px;padding:18px 16px;text-align:center;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.08);border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.12);transition:transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease; }',
+            '.jodu-sum-card:hover { transform:translateY(-2px);border-color:rgba(255,255,255,0.2); }',
             '.jodu-sum-icon { font-size:1.5em;margin-bottom:4px; }',
-            '.jodu-sum-val { font-size:1.6em;font-weight:800;margin:4px 0 2px;letter-spacing:-0.02em; }',
+            '.jodu-sum-val { font-size:1.6em;font-weight:800;margin:4px 0 2px;letter-spacing:-0.02em;font-variant-numeric:tabular-nums; }',
             '.jodu-sum-sub { font-size:0.78em;color:#94a3b8;font-weight:500;margin-bottom:6px; }',
             '.jodu-sum-lbl { font-size:0.7em;letter-spacing:0.1em;text-transform:uppercase;color:#64748b;font-weight:700; }',
             '.jodu-grid-2col { display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:16px;margin-bottom:16px; }',
             '.jodu-grid-auto { display:grid;grid-template-columns:repeat(auto-fit, minmax(380px, 1fr));gap:16px;margin-bottom:16px; }',
             '@media (max-width:768px) { .jodu-grid-auto { grid-template-columns:1fr; } }',
             '.jodu-grid-3col { display:grid;grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));gap:16px;margin-bottom:16px; }',
+            '@media (max-width:640px) { ' +
+                '.jodu-wrapper { padding:14px 12px; border-radius:12px; } ' +
+                '.jodu-top-bar { flex-direction:column; align-items:stretch; gap:12px; } ' +
+                '.jodu-title-block { text-align:center; } ' +
+                '.jodu-actions { display:grid; grid-template-columns:repeat(2, 1fr); width:100%; gap:6px; } ' +
+                '.jodu-top-btn { width:100%; text-align:center; justify-content:center; } ' +
+                '.jodu-sum-row { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; } ' +
+                '.jodu-sum-card { min-width:unset; padding:14px 10px; } ' +
+                '.jodu-sum-val { font-size:1.35em; } ' +
+                '.jodu-grid-2col, .jodu-grid-auto, .jodu-grid-3col { grid-template-columns:1fr; } ' +
+            '}',
             '.jodu-thermal-grid { display:grid;grid-template-columns:repeat(2, 1fr);gap:18px; }',
             '@media (max-width:768px) { .jodu-thermal-grid { grid-template-columns:1fr;gap:12px; } }',
             '.jodu-thermal-col { background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:10px 14px; }',
@@ -2110,7 +2167,7 @@ return view.extend({
             '.jodu-th-tr { border-bottom:1px solid rgba(255,255,255,0.1); }',
             '.jodu-th { text-align:left;padding:6px 8px;font-size:0.78em;color:#64748b;font-weight:700;letter-spacing:0.04em;text-transform:uppercase; }',
             '.jodu-td-lbl { padding:8px 8px;color:#94a3b8; }',
-            '.jodu-td-val { padding:8px 8px;text-align:right;color:#f8fafc; }',
+            '.jodu-td-val { padding:8px 8px;text-align:right;color:#f8fafc;font-variant-numeric:tabular-nums; }',
             '.jodu-td-val.jodu-has-color { font-weight:600; }',
             '.jodu-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle; }',
             '.jodu-badge { font-size:0.75em;padding:3px 8px;border-radius:6px;font-weight:600;display:inline-block; }',
