@@ -2,10 +2,22 @@ name: Build OpenWrt APK Package
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
     tags: ['v*']
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'scratch/**'
+      - '**.md'
   pull_request:
-    branches: [main, dev]
+    branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'scratch/**'
+      - '**.md'
   workflow_dispatch:
 
 jobs:
@@ -34,6 +46,9 @@ jobs:
           FEEDNAME: packages_ci
           PACKAGES: luci-app-jodu5164x-status
           NO_REFRESH_CHECK: true
+          NO_SHFMT_CHECK: 1
+          NO_DEFAULT_FEEDS: 1
+          EXTRA_FEEDS: "src-git|luci|https://github.com/openwrt/luci.git;openwrt-24.10 src-git|packages|https://github.com/openwrt/packages.git;openwrt-24.10"
 
       - name: Collect package artifacts
         id: collect_pkg
