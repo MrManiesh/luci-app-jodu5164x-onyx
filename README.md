@@ -4,11 +4,11 @@
 
 ### Real-Time 5G Dashboard for Sercomm JODU5164x ODUs (JODU51641 / JODU51642) on OpenWrt
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-status/releases)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-status/releases)
 [![OpenWrt](https://img.shields.io/badge/OpenWrt-23.05%20%7C%2024.10-success.svg)](https://openwrt.org)
 [![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-Compatible-success.svg)](https://immortalwrt.org)
 [![Original Author](https://img.shields.io/badge/Original%20Author-anishthevictorious-181717?style=flat&logo=github&logoColor=white)](https://github.com/anishthevictorious)
-[![Current Author](https://img.shields.io/badge/Telegram-@Zeetron-2CA5E0?logo=telegram&logoColor=white)](https://t.me/Zeetron)
+[![Current Author](https://img.shields.io/badge/Current%20Author-@Zeetron-2CA5E0?logo=telegram&logoColor=white)](https://t.me/Zeetron)
 
 A modern, responsive LuCI web dashboard extension designed specifically for **Sercomm 5G Outdoor Units (ODU)** (**JODU51641** and **JODU51642**).
 
@@ -76,7 +76,10 @@ Originally created and conceptualized by **[Anish (@anishthevictorious)](https:/
 
 ### 📊 ODU Hardware & System Telemetry
 - **Hardware Control**: 1-Click remote reboot of the 5G ODU with automatic reconnection monitoring.
-- **Ethernet Diagnostics**: Real-time link status, duplex, negotiated speed, and Cat6/Gigabit cable recommendations for sub-gigabit links.
+- **Ethernet Diagnostics & Link Health**: Real-time link status, duplex, negotiated speed, and Cat6/Gigabit cable recommendations for sub-gigabit links.
+- **Ethernet Cable Health & Diagnostics (CDT)**: Realtek PHY cable diagnostics (`diag phy cable get`) testing all 4 twisted pairs (Pairs A, B, C, D) for Normal, Open, Short, or Mismatch status with per-pair physical length estimation in meters.
+- **Dynamic 5G Signal Level Bars**: Visual 4/5-bar cellular signal strength meter replacing the static link block at the top of the dashboard and in the Primary Cell table.
+- **Modular Dashboard & Clean Fresh Install Defaults**: 5 clean widgets active on fresh install (`quick_metrics`, `primary_cell`, `secondary_cells`, `nearby_cells`, `hardware_control`) with optional widgets toggled via the "Customize Dashboard" modal, and a prominent discovery reminder.
 - **CPU & RAM Gauges**: Circular percentage gauges with 5-minute historical sparklines.
 - **Detailed CPU Breakdown**: User space, System kernel, Idle, I/O wait, Hardware IRQ, Software IRQ, context switches/s, interrupt rate/s, and active connection tracking (`nf_conntrack`).
 - **Internal Multi-Zone Thermal Sensors**: Multi-column temperature sensor grid covering CPU, 5G Modem, Sub-6 RF, Power Amplifiers, SDR transceivers, and ambient chassis, with a hottest-sensor alert badge.
@@ -218,7 +221,7 @@ This package is specifically tailored for Sercomm JODU5164x series ODUs (JODU516
 
 ## 📄 License & Maintainer
 
-- **License**: Distributed under the [GNU General Public License v3.0](LICENSE).
+- **License**: All Rights Reserved. See [LICENSE](LICENSE) for details.
 - **Original Base Project**: Created by [Anish (@anishthevictorious)](https://github.com/anishthevictorious)
 - **Current Maintainer**: Manish Matwa Choudhary ([@Zeetron](https://t.me/Zeetron) / [@MrManiesh](https://github.com/MrManiesh))
 - **Project**: OpenWrt LuCI 5G CPE Dashboard.

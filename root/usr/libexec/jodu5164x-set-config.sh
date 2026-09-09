@@ -25,7 +25,7 @@
 #
 # Originally created by: Anish (@anishthevictorious)
 # Modified by: Manish Matwa Choudhary
-# License: GPL-3.0
+# License: All Rights Reserved
 # =============================================================================
 
 UCI_PKG="jodu5164x"
