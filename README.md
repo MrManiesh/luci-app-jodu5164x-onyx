@@ -80,7 +80,10 @@ cd /tmp && uclient-fetch -O luci-app-jodu5164x-status-3.2.1-r1.apk https://githu
 /etc/init.d/jodu5164x-updater restart
 ```
 
-Access the dashboard in LuCI under: **Status** $\rightarrow$ **5G Dashboard**
+### 📍 Where to Find in LuCI After Installation
+
+After installation and restarting services, refresh your browser page and open:
+> 👉 **Status** $\rightarrow$ **5G ODU Telemetry**
 
 ---
 
