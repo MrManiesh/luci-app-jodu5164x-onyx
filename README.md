@@ -4,7 +4,7 @@
 
 ### Real-Time 5G Dashboard for Sercomm JODU5164x ODUs (JODU51641 / JODU51642) on OpenWrt
 
-[![Version](https://img.shields.io/badge/version-3.2.1-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-onyx/releases)
+[![Version](https://img.shields.io/badge/version-3.5.0-blue.svg)](https://github.com/MrManiesh/luci-app-jodu5164x-onyx/releases)
 [![OpenWrt](https://img.shields.io/badge/OpenWrt-24.10%2B%20(apk)-success.svg)](https://openwrt.org)
 [![ImmortalWrt](https://img.shields.io/badge/ImmortalWrt-Compatible-success.svg)](https://immortalwrt.org)
 [![Original Author](https://img.shields.io/badge/Original%20Author-anishthevictorious-181717?style=flat&logo=github&logoColor=white)](https://github.com/anishthevictorious)
@@ -69,7 +69,7 @@ A modern, responsive, and theme-adaptive LuCI web dashboard extension for **Serc
 Run the following command directly on your router via SSH:
 
 ```sh
-cd /tmp && uclient-fetch -O luci-app-jodu5164x-status-3.2.1-r1.apk https://github.com/MrManiesh/luci-app-jodu5164x-onyx/releases/download/v3.2.1/luci-app-jodu5164x-status-3.2.1-r1.apk && apk add --allow-untrusted ./luci-app-jodu5164x-status-*.apk
+cd /tmp && uclient-fetch -O luci-app-jodu5164x-status-3.5.0-r1.apk https://github.com/MrManiesh/luci-app-jodu5164x-onyx/releases/download/v3.5.0/luci-app-jodu5164x-status-3.5.0-r1.apk && apk add --allow-untrusted ./luci-app-jodu5164x-status-*.apk
 ```
 
 ### Restart Services (Recommended)
