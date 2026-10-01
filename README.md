@@ -83,7 +83,7 @@ cd /tmp && uclient-fetch -O luci-app-jodu5164x-status-3.2.1-r1.apk https://githu
 ### 📍 Where to Find in LuCI After Installation
 
 After installation and restarting services, refresh your browser page and open:
-> 👉 **Status** $\rightarrow$ **5G ODU Telemetry**
+> 👉 **Onyx Tools** $\rightarrow$ **5G ODU Telemetry**
 
 ---
 
