@@ -32,19 +32,7 @@ Originally created and conceptualized by **[Anish (@anishthevictorious)](https:/
 
 ---
 
-## 📸 Interface Showcase & Live Demo
-
-<div align="center">
-
-### 🎬 Animated Feature Tour (Sliding Showcase)
-
-[![Sercomm JODU5164x 5G Telemetry Dashboard Demo](screenshot/sliding_dashboard_demo.gif)](screenshot/sliding_dashboard_demo.gif)
-
-*Smooth slideshow cycling through all 6 interface views: Default Dashboard, Antenna Aiming Mode, Modular Widgets, Full Telemetry, Settings, and Paused Mode.*
-
-</div>
-
-### 🖼️ Screenshot Gallery
+## 📸 Screenshots
 
 | **Minimalist View (Default)** | **Full Expanded Telemetry** |
 | :---: | :---: |
