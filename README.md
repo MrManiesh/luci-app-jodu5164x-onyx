@@ -28,7 +28,38 @@ A modern, responsive LuCI web dashboard extension designed specifically for **Se
 
 When using a 5G Outdoor Unit (CPE) connected to your OpenWrt router, monitoring 5G signal quality, determining connected cell tower metrics, or locking to a less congested tower usually requires manual Telnet sessions or dealing with the ODU's single-login WebUI restrictions.
 
-Originally created and conceptualized by **[Anish (@anishthevictorious)](https://github.com/anishthevictorious)**, This repository builds upon Anish's original work, introducing a new UI, customizable modular widgets, antenna aiming with Web Audio beeper feedback, and few other features.
+Originally created and conceptualized by **[Anish (@anishthevictorious)](https://github.com/anishthevictorious)**, this repository builds upon Anish's original work, introducing an authentic industrial telecom UI, customizable modular widgets, antenna aiming with Web Audio beeper feedback, and comprehensive hardware diagnostics.
+
+---
+
+## 📸 Interface Showcase & Live Demo
+
+<div align="center">
+
+### 🎬 Animated Feature Tour (Sliding Showcase)
+
+[![Sercomm JODU5164x 5G Telemetry Dashboard Demo](screenshot/sliding_dashboard_demo.gif)](screenshot/sliding_dashboard_demo.gif)
+
+*Smooth slideshow cycling through all 6 interface views: Default Dashboard, Antenna Aiming Mode, Modular Widgets, Full Telemetry, Settings, and Paused Mode.*
+
+</div>
+
+### 🖼️ Screenshot Gallery
+
+| **Minimalist View (Default)** | **Full Expanded Telemetry** |
+| :---: | :---: |
+| [![Default Dashboard](screenshot/default_or_few_widgets_visible.png)](screenshot/default_or_few_widgets_visible.png) | [![Full Telemetry](screenshot/all_widgets_visible_and_main_page.png)](screenshot/all_widgets_visible_and_main_page.png) |
+| *Glanceable RF indicators & primary cell telemetry* | *Comprehensive RF, CA, Nearby Cells, CDT & SoC metrics* |
+
+| **Antenna Aiming & Audio Beeper** | **Modular Widget Customizer** |
+| :---: | :---: |
+| [![Antenna Aiming](screenshot/Outdoor_Antenna_Alignment_and_RF_Telemetry.png)](screenshot/Outdoor_Antenna_Alignment_and_RF_Telemetry.png) | [![Customize Widgets](screenshot/Customize_Telemetry_Widgets.png)](screenshot/Customize_Telemetry_Widgets.png) |
+| *Real-time peak tracking & pitch-modulated Web Audio* | *Toggle and personalize visible telemetry cards* |
+
+| **ODU Configuration & Credentials** | **Native WebUI Session Handoff** |
+| :---: | :---: |
+| [![ODU Configuration](screenshot/ODU_Configuration_and_Settings.png)](screenshot/ODU_Configuration_and_Settings.png) | [![Monitoring Paused](screenshot/turned_off_monitoring.png)](screenshot/turned_off_monitoring.png) |
+| *Configure host, WebUI/Telnet authentication & polling* | *1-Click pause to release single-session WebUI lock* |
 
 ---
 
@@ -65,6 +96,10 @@ Originally created and conceptualized by **[Anish (@anishthevictorious)](https:/
   - **Serving Cell Context**: Displays active Band, PCI, ARFCN
   - **Handover Detector**: Instant warning banner if the modem unexpectedly hops to a different PCI while rotating the antenna.
 
+<p align="center">
+  <a href="screenshot/Outdoor_Antenna_Alignment_and_RF_Telemetry.png"><img src="screenshot/Outdoor_Antenna_Alignment_and_RF_Telemetry.png" alt="Outdoor Antenna Alignment & RF Telemetry" width="85%"/></a>
+</p>
+
 ### 🔒 Cell & Frequency Locking
 - **1-Click Tower Lock**: Lock directly to any detected tower from the Nearby Cells scan list.
 - **Manual Cell Lock**: Input custom Physical Cell ID (PCI) and channel (NR-ARFCN) via the manual lock dialog.
@@ -85,10 +120,22 @@ Originally created and conceptualized by **[Anish (@anishthevictorious)](https:/
 - **Internal Multi-Zone Thermal Sensors**: Multi-column temperature sensor grid covering CPU, 5G Modem, Sub-6 RF, Power Amplifiers, SDR transceivers, and ambient chassis, with a hottest-sensor alert badge.
 - **Data Usage & Traffic Tracker**: Session upload and download counters, packet loss indicator, and rolling history windows (5 min, 1 hour, 5 hours, 24 hours).
 
+<p align="center">
+  <a href="screenshot/Customize_Telemetry_Widgets.png"><img src="screenshot/Customize_Telemetry_Widgets.png" alt="Customize Telemetry Widgets" width="85%"/></a>
+</p>
+
 ### ⏸️ Monitoring Session Pause & Configuration
 - **Single-Login Session Conflict Prevention**: Sercomm ODUs only allow one active WebUI login at a time. The dashboard includes a top-bar **`Monitoring: ON / OFF`** button to pause LuCI polling and release the session whenever you want to log into the native ODU WebUI.
 - **Settings Modal**: Configure ODU IP address, WebUI credentials, Telnet port/password, polling interval (1s to 10s), and automated daily scheduled reboot.
 - **CLI Diagnostics Tool**: Includes `/usr/libexec/jodu5164x-diag.sh <cmd>` for fast command-line diagnostics over SSH (`cell_location`, `signal`, `band`, `nearby`, etc.).
+
+<p align="center">
+  <a href="screenshot/turned_off_monitoring.png"><img src="screenshot/turned_off_monitoring.png" alt="Monitoring Paused State" width="85%"/></a>
+</p>
+
+---
+
+## 🛠️ Architecture & Under the Hood
 
 1. **Dual-Pipeline Telemetry**:
    - **Native WebUI HTTP API**: Queries the ODU's built-in web services using HMAC-SHA256 challenge-response session authentication for Primary/Secondary cell parameters, LAN status, and traffic data.
@@ -152,6 +199,10 @@ To configure your credentials or network settings:
 3. Choose your preferred **Telemetry Polling Rate** (1s to 10s, default 3s).
 4. Optionally configure **Daily Scheduled Reboot** time.
 5. Click **Save & Apply**.
+
+<p align="center">
+  <a href="screenshot/ODU_Configuration_and_Settings.png"><img src="screenshot/ODU_Configuration_and_Settings.png" alt="ODU Configuration & Settings" width="60%"/></a>
+</p>
 
 ---
 
